@@ -169,6 +169,10 @@ body {
   .recnote-shine::after {
     animation: none;
   }
+
+  .animate-spin {
+    animation: none !important;
+  }
 }
 
 @layer base {
