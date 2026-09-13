@@ -8,16 +8,17 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import {
+  Archive,
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
   ArrowUp,
+  BookOpenCheck,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   Clipboard,
-  CloudOff,
   Download,
   Eye,
   EyeOff,
@@ -34,7 +35,19 @@ import {
   Video,
   WandSparkles,
 } from 'lucide-react';
+import Image from 'next/image';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +57,14 @@ import {
   ProgressValue,
 } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  buildMarkdown,
+  buildWechatHtml,
+  createTutorialZip,
+  downloadBlob,
+  safeBasename,
+  writeRichClipboard,
+} from '@/lib/tutorial-export';
 
 type Phase = 'upload' | 'processing' | 'editor';
 type EditorMode = 'edit' | 'preview';
@@ -54,9 +75,43 @@ type TutorialStep = {
   title: string;
   body: string;
   image: string;
+  imageHeight: number;
   included: boolean;
   confidence: number;
 };
+
+type NoticeState = {
+  message: string;
+  tone: 'success' | 'warning' | 'error';
+};
+
+type StoredDraft = {
+  version: number;
+  steps: Array<Pick<TutorialStep, 'id' | 'title' | 'body' | 'included'>>;
+  selectedId: number;
+  mode: EditorMode;
+  title: string;
+  summary: string;
+  articleCopyEdited: boolean;
+  articleCopyReviewed: boolean;
+  editedStepIds: number[];
+  reviewedStepIds: number[];
+  privacyReviewedIds: number[];
+};
+
+const PUBLIC_SITE_ORIGIN =
+  'https://lujian-video-guide-demo.caiyiwenann.chatgpt.site';
+const DRAFT_STORAGE_KEY = 'recnote-demo-draft-v4';
+const DRAFT_VERSION = 1;
+
+function clearStoredDraft() {
+  try {
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const INITIAL_STEPS: TutorialStep[] = [
   {
@@ -65,6 +120,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '新建一个对话',
     body: '点击左侧的 New chat，进入新的对话页面。录屏中的页面已经处于 Work 模式。',
     image: '/demo/step-01-new-chat.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 98,
   },
@@ -74,6 +130,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '发送一条测试消息',
     body: '在底部输入框中输入测试内容并发送。等待处理完成后，页面出现回复。',
     image: '/demo/step-02-message.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 96,
   },
@@ -83,6 +140,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '查看 Library 资料库',
     body: '点击左侧 Library。资料库页面提供搜索入口，并可按内容类型进行查看。',
     image: '/demo/step-03-library.jpg',
+    imageHeight: 246,
     included: true,
     confidence: 99,
   },
@@ -92,6 +150,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '查看 Projects 项目',
     body: '点击 Projects 进入项目页面。当前账号尚未创建项目，因此页面显示空状态。',
     image: '/demo/step-04-projects.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 99,
   },
@@ -101,6 +160,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '查看 Scheduled 定时任务',
     body: '点击 Scheduled。页面顶部包含任务输入框和 Active 筛选入口。',
     image: '/demo/step-05-scheduled.jpg',
+    imageHeight: 272,
     included: true,
     confidence: 97,
   },
@@ -110,6 +170,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '打开 Plugins 插件页',
     body: '点击 Plugins。页面顶部可在 Plugins 与 Skills 之间切换，并提供插件搜索入口。',
     image: '/demo/step-06-plugins.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 99,
   },
@@ -119,6 +180,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '浏览更多插件分类',
     body: '向下滚动插件页面，继续查看旅行、娱乐及其他分类中的可用插件。',
     image: '/demo/step-07-plugin-categories.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 94,
   },
@@ -128,6 +190,7 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '展开 More 菜单',
     body: '点击左侧 More，可以看到 Health、Finances、Sites 和 GPTs 等附加入口。',
     image: '/demo/step-08-more-menu.jpg',
+    imageHeight: 742,
     included: true,
     confidence: 95,
   },
@@ -135,8 +198,9 @@ const INITIAL_STEPS: TutorialStep[] = [
     id: 9,
     time: '02:00',
     title: '查看 Health 页面',
-    body: 'Health 页面显示 Connect your health data。录屏只进行了查看，没有连接或授权。',
+    body: 'Health 页面显示 Connect your health data。录屏只进行了查看，没有连接或授权；示例截图不包含任何真实健康数值。',
     image: '/demo/step-09-health.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 98,
   },
@@ -146,13 +210,14 @@ const INITIAL_STEPS: TutorialStep[] = [
     title: '打开 GPTs 页面',
     body: '通过 More 中的 GPTs 进入页面，可查看搜索框、分类标签、精选内容和热门排行。',
     image: '/demo/step-10-gpts.jpg',
+    imageHeight: 980,
     included: true,
     confidence: 99,
   },
 ];
 
 const PROCESSING_STAGES = [
-  { at: 14, label: '读取录屏信息', detail: '02:41 · 3456 × 2166 · 无音频' },
+  { at: 14, label: '载入内置样例', detail: '02:41 · 3456 × 2166 · 无音频' },
   { at: 34, label: '定位界面变化', detail: '发现 44 个候选画面' },
   { at: 58, label: '筛选关键步骤', detail: '去除加载态与重复画面' },
   { at: 78, label: '理解操作语义', detail: '匹配截图、时间戳与说明' },
@@ -162,31 +227,60 @@ const PROCESSING_STAGES = [
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <span className={`${compact ? 'size-8 rounded-[10px]' : 'size-9 rounded-[11px]'} grid place-items-center bg-gradient-to-br from-[#8b6cff] via-[#7657ff] to-[#4fdcff] text-white shadow-[0_10px_32px_rgba(118,87,255,.36)]`}>
+      <span
+        className={`${compact ? 'size-8 rounded-[10px]' : 'size-9 rounded-[11px]'} grid place-items-center bg-gradient-to-br from-[#8b6cff] via-[#7657ff] to-[#4fdcff] text-white shadow-[0_10px_32px_rgba(118,87,255,.36)]`}
+      >
         <Play className="size-3.5 fill-current" />
       </span>
       <div className="leading-none">
-        <strong className="font-heading text-lg font-semibold tracking-[-.045em]">录见</strong>
+        <strong className="font-heading text-lg font-semibold tracking-[-.045em]">
+          录见
+        </strong>
         {!compact && (
-          <span className="ml-2 text-[10px] font-medium uppercase tracking-[.24em] text-white/35">Recnote</span>
+          <span className="ml-2 text-[10px] font-medium uppercase tracking-[.24em] text-white/50">
+            Recnote
+          </span>
         )}
       </div>
     </div>
   );
 }
 
-function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
+function UploadView({
+  onStart,
+  onResume,
+}: {
+  onStart: (fileName?: string) => void;
+  onResume: () => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [hasDraft, setHasDraft] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const draft = JSON.parse(
+          window.localStorage.getItem(DRAFT_STORAGE_KEY) ?? 'null',
+        ) as Partial<StoredDraft> | null;
+        setHasDraft(draft?.version === DRAFT_VERSION);
+      } catch {
+        clearStoredDraft();
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const acceptFile = (file?: File) => {
     if (!file) return;
-    const supported = ['video/mp4', 'video/quicktime'].includes(file.type) || /\.(mov|mp4)$/i.test(file.name);
+    const supported =
+      ['video/mp4', 'video/quicktime'].includes(file.type) ||
+      /\.(mov|mp4)$/i.test(file.name);
     if (!supported) {
       setFileName('');
-      setFileError('请选择 MOV 或 MP4 录屏文件');
+      setFileError('不支持这个格式；可以重新选择，或直接体验内置样例');
       return;
     }
     setFileName(file.name);
@@ -208,9 +302,17 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
       <header className="border-b border-white/[.07] bg-[#07080c]/72 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 sm:px-8">
           <Brand />
-          <div className="flex items-center gap-3 text-[11px] text-white/42">
-            <span className="hidden items-center gap-2 sm:flex"><span className="size-1.5 rounded-full bg-[#6ce5ff] shadow-[0_0_12px_#6ce5ff]" /> INTERACTIVE PROTOTYPE</span>
-            <Badge className="h-7 border-white/10 bg-white/[.055] px-3 text-white/70" variant="outline">示例模式</Badge>
+          <div className="flex items-center gap-3 text-[11px] text-white/55">
+            <span className="hidden items-center gap-2 sm:flex">
+              <span className="size-1.5 rounded-full bg-[#6ce5ff] shadow-[0_0_12px_#6ce5ff]" />{' '}
+              INTERACTIVE PROTOTYPE
+            </span>
+            <Badge
+              className="h-7 border-white/10 bg-white/[.055] px-3 text-white/70"
+              variant="outline"
+            >
+              示例模式
+            </Badge>
           </div>
         </div>
       </header>
@@ -224,14 +326,19 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
           <h1 className="font-heading text-[clamp(2.6rem,5.2vw,4.8rem)] leading-[.96] font-semibold tracking-[-.07em]">
             把一段录屏
             <br />
-            <span className="bg-gradient-to-r from-[#b9a8ff] via-[#826cff] to-[#63ddff] bg-clip-text text-transparent">变成一篇教程。</span>
+            <span className="bg-gradient-to-r from-[#b9a8ff] via-[#826cff] to-[#63ddff] bg-clip-text text-transparent">
+              变成一篇教程。
+            </span>
           </h1>
           <p className="mt-7 max-w-lg text-[17px] leading-8 text-[#9aa4b7]">
-            AI 自动找到关键操作，匹配截图与说明。你只需要校对几处，就能得到一篇可编辑、可导出的教程初稿。
+            AI
+            自动找到关键操作，匹配截图与说明。你只需要校对几处，就能得到一篇可编辑、可导出的教程初稿。
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[.08em] text-white/42">
-            <span>02:41 录屏</span><ArrowRight className="size-3 text-[#826cff]" />
-            <span>44 个候选画面</span><ArrowRight className="size-3 text-[#826cff]" />
+          <div className="mt-6 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[.08em] text-white/55">
+            <span>02:41 录屏</span>
+            <ArrowRight className="size-3 text-[#826cff]" />
+            <span>44 个候选画面</span>
+            <ArrowRight className="size-3 text-[#826cff]" />
             <span className="text-white/75">10 步教程</span>
           </div>
 
@@ -258,37 +365,108 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
                 <UploadCloud className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-white">{fileName || '选择或拖入一段录屏'}</span>
-                <span className="mt-1 block text-xs text-white/38">
-                  {fileName ? '仅显示文件名，不读取、不上传、不分析内容' : 'MOV / MP4 · 演示模式使用内置样例'}
+                <span className="block truncate text-sm font-medium text-white">
+                  {fileName || '选择或拖入一段录屏'}
+                </span>
+                <span className="mt-1 block text-xs text-white/58">
+                  {fileName
+                    ? '仅显示文件名，不读取、不上传、不分析内容'
+                    : 'MOV / MP4 · 演示模式使用内置样例'}
                 </span>
               </span>
               {fileName ? (
                 <CheckCircle2 className="mr-2 size-5 text-[#5de0c0]" />
               ) : (
-                <ArrowRight className="mr-2 size-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-white" />
+                <ArrowRight className="mr-2 size-4 text-white/45 transition group-hover:translate-x-1 group-hover:text-white" />
               )}
             </button>
-            <Button
-              className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
-              size="lg"
-              onClick={() => onStart(fileName)}
-            >
-              <Sparkles data-icon="inline-start" />
-              {fileName ? '用内置结果继续体验' : '体验示例流程'}
-            </Button>
+            {hasDraft ? (
+              <>
+                <Button
+                  className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
+                  size="lg"
+                  onClick={onResume}
+                >
+                  <BookOpenCheck data-icon="inline-start" /> 继续编辑上次草稿
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        className="mt-2.5 h-11 w-full rounded-[15px] border-white/[.1] bg-white/[.035] text-white/68 hover:bg-white/[.07] hover:text-white"
+                        size="lg"
+                        variant="outline"
+                      />
+                    }
+                  >
+                    <Sparkles data-icon="inline-start" />
+                    清空草稿并从头体验
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="border border-white/[.1] bg-[#12151d] text-white shadow-2xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        放弃上次草稿，从头开始？
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-white/62">
+                        标题、步骤修改、排序和检查进度都会被清除，且无法恢复。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="border-white/[.08] bg-white/[.025]">
+                      <AlertDialogCancel className="border-white/[.1] bg-transparent text-white/72 hover:bg-white/[.06] hover:text-white">
+                        保留草稿
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-[#7657ff] text-white hover:bg-[#836dff]"
+                        onClick={() => {
+                          clearStoredDraft();
+                          setHasDraft(false);
+                          onStart(fileName);
+                        }}
+                      >
+                        清空并开始
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            ) : (
+              <Button
+                className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
+                size="lg"
+                onClick={() => onStart(fileName)}
+              >
+                <Sparkles data-icon="inline-start" />
+                {fileName ? '用内置结果继续体验' : '体验示例流程'}
+              </Button>
+            )}
             {fileName && (
-              <p className="px-2 pt-3 text-center text-xs leading-5 text-white/38">
+              <p className="px-2 pt-3 text-center text-xs leading-5 text-white/58">
                 你选择的视频不会被读取或上传，后续展示来自内置示例数据。
               </p>
             )}
-            {fileError && <p role="alert" className="px-2 pt-3 text-center text-xs text-destructive">{fileError}</p>}
+            {fileError && (
+              <p
+                role="alert"
+                className="px-2 pt-3 text-center text-xs text-destructive"
+              >
+                {fileError}
+              </p>
+            )}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/46">
-            <span className="flex items-center gap-2"><ShieldCheck className="size-3.5 text-[#69dec9]" /> 本地优先 · 隐私可控</span>
-            <span className="flex items-center gap-2"><FileText className="size-3.5 text-[#8e7cff]" /> 一键导出 Markdown</span>
+          <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/60">
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="size-3.5 text-[#69dec9]" />{' '}
+              演示不读取、不上传视频
+            </span>
+            <span className="flex items-center gap-2">
+              <Archive className="size-3.5 text-[#8e7cff]" /> 导出独立图文包
+            </span>
           </div>
+          <p className="mt-5 max-w-lg text-[11px] leading-5 text-white/52">
+            非 OpenAI 官方产品概念
+            Demo；所示界面与示例数据仅用于演示，相关品牌及商标归其权利人所有。
+          </p>
         </div>
 
         <div className="relative z-10 lg:pl-6">
@@ -296,24 +474,48 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
           <div className="relative overflow-hidden rounded-[28px] border border-white/[.12] bg-[#11131a]/88 p-2.5 shadow-[0_45px_120px_rgba(0,0,0,.55)] backdrop-blur-xl sm:p-3">
             <div className="flex h-12 items-center justify-between px-3 text-white">
               <div>
-                <div className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-[#ff6b67]" /><span className="size-2 rounded-full bg-[#f6c85f]" /><span className="size-2 rounded-full bg-[#5ed19a]" /></div>
+                <div className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-[#ff6b67]" />
+                  <span className="size-2 rounded-full bg-[#f6c85f]" />
+                  <span className="size-2 rounded-full bg-[#5ed19a]" />
+                </div>
               </div>
-              <p className="text-[11px] font-medium uppercase tracking-[.16em] text-white/35">Recnote · Draft 01</p>
-              <Badge className="h-6 border-[#67dfc5]/20 bg-[#67dfc5]/10 text-[#75e8cf]" variant="outline"><span className="mr-1 size-1.5 rounded-full bg-current" /> READY</Badge>
+              <p className="text-[11px] font-medium uppercase tracking-[.16em] text-white/50">
+                Recnote · Draft 01
+              </p>
+              <Badge
+                className="h-6 border-[#67dfc5]/20 bg-[#67dfc5]/10 text-[#75e8cf]"
+                variant="outline"
+              >
+                <span className="mr-1 size-1.5 rounded-full bg-current" />{' '}
+                SAMPLE
+              </Badge>
             </div>
             <div className="relative overflow-hidden rounded-[20px] border border-white/[.08] bg-white">
-              <img
+              <Image
                 src="/demo/step-06-plugins.jpg"
                 alt="自动生成教程中的插件页面步骤截图"
+                width={1600}
+                height={980}
+                priority
+                unoptimized
                 className="aspect-[16/9] w-full object-cover object-top"
               />
               <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded-[15px] border border-black/[.06] bg-[#0e1118]/92 p-3 text-white shadow-2xl backdrop-blur-xl">
-                <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#8065ff] to-[#55d6ef] text-xs font-bold text-white">06</span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#8065ff] to-[#55d6ef] text-xs font-bold text-white">
+                  06
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">打开 Plugins 插件页</p>
-                  <p className="mt-0.5 truncate text-[11px] text-white/42">已匹配截图 · 时间戳 · 操作说明</p>
+                  <p className="truncate text-sm font-semibold">
+                    打开 Plugins 插件页
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-white/56">
+                    已匹配截图 · 时间戳 · 操作说明
+                  </p>
                 </div>
-                <span className="font-mono text-[10px] text-[#78e5ce]">99% MATCH</span>
+                <span className="font-mono text-[10px] text-[#78e5ce]">
+                  示例 99%
+                </span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-[18px] bg-white/[.08] text-white">
@@ -322,9 +524,16 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
                 ['44 → 10', '关键步骤'],
                 ['01:08', '生成初稿'],
               ].map(([value, label]) => (
-                <div key={label} className="bg-[#11131a] px-3 py-3.5 text-center">
-                  <p className="font-mono text-sm font-medium tracking-tight text-white/90">{value}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[.1em] text-white/30">{label}</p>
+                <div
+                  key={label}
+                  className="bg-[#11131a] px-3 py-3.5 text-center"
+                >
+                  <p className="font-mono text-sm font-medium tracking-tight text-white/90">
+                    {value}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[.1em] text-white/48">
+                    {label}
+                  </p>
                 </div>
               ))}
             </div>
@@ -335,7 +544,13 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
   );
 }
 
-function ProcessingView({ onCancel, onComplete }: { onCancel: () => void; onComplete: () => void }) {
+function ProcessingView({
+  onCancel,
+  onComplete,
+}: {
+  onCancel: () => void;
+  onComplete: () => void;
+}) {
   const [progress, setProgress] = useState(4);
 
   useEffect(() => {
@@ -355,7 +570,11 @@ function ProcessingView({ onCancel, onComplete }: { onCancel: () => void; onComp
       <header className="border-b border-white/[.07] bg-[#07080c]/70 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Brand />
-          <Button className="border border-white/[.08] bg-white/[.04] text-white/65 hover:bg-white/[.08] hover:text-white" variant="ghost" onClick={onCancel}>
+          <Button
+            className="border border-white/[.08] bg-white/[.04] text-white/65 hover:bg-white/[.08] hover:text-white"
+            variant="ghost"
+            onClick={onCancel}
+          >
             退出演示
           </Button>
         </div>
@@ -368,40 +587,80 @@ function ProcessingView({ onCancel, onComplete }: { onCancel: () => void; onComp
             Demo Pipeline · Sample
           </div>
           <h1 className="mt-6 font-heading text-[clamp(2.55rem,4.2vw,4rem)] font-semibold leading-[1.02] tracking-[-.06em]">
-            正在把操作过程<br />变成清晰教程
+            正在把操作过程
+            <br />
+            变成清晰教程
           </h1>
           <p className="mt-5 max-w-md text-[15px] leading-7 text-white/52">
-            下面使用内置录屏结果，演示 AI 如何捕获界面变化、去重、排序并写出步骤。
+            下面使用内置录屏结果，演示 AI
+            如何捕获界面变化、去重、排序并写出步骤。
           </p>
 
           <div className="mt-8 rounded-[20px] border border-white/[.09] bg-[#10131b]/82 p-5 shadow-[0_28px_90px_rgba(0,0,0,.34)] backdrop-blur-xl">
-            <Progress value={progress} className="[&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-[#7b5cff] [&_[data-slot=progress-indicator]]:to-[#5bdbed] [&_[data-slot=progress-track]]:h-1.5 [&_[data-slot=progress-track]]:bg-white/[.07]">
-              <ProgressLabel className="text-[11px] font-medium uppercase tracking-[.16em] text-white/58">Demo progress</ProgressLabel>
-              <ProgressValue className="font-mono text-sm text-white">{String(progress).padStart(2, '0')}%</ProgressValue>
+            <Progress
+              value={progress}
+              className="[&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-[#7b5cff] [&_[data-slot=progress-indicator]]:to-[#5bdbed] [&_[data-slot=progress-track]]:h-1.5 [&_[data-slot=progress-track]]:bg-white/[.07]"
+            >
+              <ProgressLabel className="text-[11px] font-medium uppercase tracking-[.16em] text-white/58">
+                Demo progress
+              </ProgressLabel>
+              <ProgressValue className="font-mono text-sm text-white">
+                {(_formatted, value) =>
+                  `${String(value ?? 0).padStart(2, '0')}%`
+                }
+              </ProgressValue>
             </Progress>
             <div className="mt-6 space-y-1.5">
               {PROCESSING_STAGES.map((stage, index) => {
-                const completed = index === PROCESSING_STAGES.length - 1 ? progress === 100 : progress >= stage.at;
-                const active = !completed && (index === 0 || progress >= PROCESSING_STAGES[index - 1].at);
+                const completed =
+                  index === PROCESSING_STAGES.length - 1
+                    ? progress === 100
+                    : progress >= stage.at;
+                const active =
+                  !completed &&
+                  (index === 0 || progress >= PROCESSING_STAGES[index - 1].at);
                 return (
                   <div
                     key={stage.label}
                     className={`flex items-center gap-3 rounded-[13px] border px-3 py-3 transition duration-300 ${active ? 'border-[#7f68ff]/25 bg-[#8065ff]/[.09]' : 'border-transparent'}`}
                   >
-                    <span className={`grid size-7 shrink-0 place-items-center rounded-[9px] border ${completed ? 'border-[#66dfca]/20 bg-[#66dfca]/10 text-[#72e3ce]' : active ? 'border-[#8a73ff]/35 bg-[#8065ff]/15 text-[#a797ff]' : 'border-white/[.07] text-white/18'}`}>
-                      {completed ? <Check className="size-3.5" /> : active ? <LoaderCircle className="size-3.5 animate-spin" /> : <span className="size-1 rounded-full bg-current" />}
+                    <span
+                      className={`grid size-7 shrink-0 place-items-center rounded-[9px] border ${completed ? 'border-[#66dfca]/20 bg-[#66dfca]/10 text-[#72e3ce]' : active ? 'border-[#8a73ff]/35 bg-[#8065ff]/15 text-[#a797ff]' : 'border-white/[.07] text-white/18'}`}
+                    >
+                      {completed ? (
+                        <Check className="size-3.5" />
+                      ) : active ? (
+                        <LoaderCircle className="size-3.5 animate-spin" />
+                      ) : (
+                        <span className="size-1 rounded-full bg-current" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[13px] font-medium ${completed || active ? 'text-white/90' : 'text-white/25'}`}>{stage.label}</p>
-                      <p className={`mt-0.5 truncate text-[11px] ${completed || active ? 'text-white/48' : 'text-white/23'}`}>{stage.detail}</p>
+                      <p
+                        className={`text-[13px] font-medium ${completed || active ? 'text-white/90' : 'text-white/25'}`}
+                      >
+                        {stage.label}
+                      </p>
+                      <p
+                        className={`mt-0.5 truncate text-[11px] ${completed || active ? 'text-white/48' : 'text-white/23'}`}
+                      >
+                        {stage.detail}
+                      </p>
                     </div>
-                    <span className={`font-mono text-[10px] ${completed ? 'text-[#6fe1cc]/60' : active ? 'text-[#9c8aff]/70' : 'text-white/14'}`}>{completed ? 'DONE' : active ? 'RUN' : `0${index + 1}`}</span>
+                    <span
+                      className={`font-mono text-[10px] ${completed ? 'text-[#6fe1cc]/60' : active ? 'text-[#9c8aff]/70' : 'text-white/14'}`}
+                    >
+                      {completed ? 'DONE' : active ? 'RUN' : `0${index + 1}`}
+                    </span>
                   </div>
                 );
               })}
             </div>
             {progress === 100 && (
-              <Button className="mt-5 h-10 w-full border-0 bg-gradient-to-r from-[#7457ff] to-[#54cfe8] text-white shadow-[0_12px_30px_rgba(116,87,255,.22)] hover:brightness-110" onClick={onComplete}>
+              <Button
+                className="mt-5 h-10 w-full border-0 bg-gradient-to-r from-[#7457ff] to-[#54cfe8] text-white shadow-[0_12px_30px_rgba(116,87,255,.22)] hover:brightness-110"
+                onClick={onComplete}
+              >
                 查看生成结果 <ArrowRight data-icon="inline-end" />
               </Button>
             )}
@@ -412,24 +671,53 @@ function ProcessingView({ onCancel, onComplete }: { onCancel: () => void; onComp
           <div className="absolute inset-16 -z-10 rounded-full bg-[#7657ff]/24 blur-[90px]" />
           <div className="overflow-hidden rounded-[22px] border border-white/[.11] bg-[#10131a] p-2.5 shadow-[0_42px_110px_rgba(0,0,0,.52)]">
             <div className="flex h-10 items-center justify-between px-2.5">
-              <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[.14em] text-white/42"><Scissors className="size-3.5 text-[#8c76ff]" /> Sample analysis</div>
-              <span className="font-mono text-[10px] text-white/38">FRAME 028 / 044</span>
+              <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[.14em] text-white/52">
+                <Scissors className="size-3.5 text-[#8c76ff]" /> Sample analysis
+              </div>
+              <span className="font-mono text-[10px] text-white/52">
+                FRAME 028 / 044
+              </span>
             </div>
             <div className="relative overflow-hidden rounded-[15px] border border-white/[.08] bg-white">
-              <img src="/demo/step-07-plugin-categories.jpg" alt="正在分析的示例录屏画面" className="aspect-[16/10] w-full object-cover object-top" />
+              <Image
+                src="/demo/step-07-plugin-categories.jpg"
+                alt="正在分析的示例录屏画面"
+                width={1600}
+                height={980}
+                priority
+                unoptimized
+                className="aspect-[16/10] w-full object-cover object-top"
+              />
               <div className="absolute left-[8%] top-[24%] h-[17%] w-[31%] rounded-[7px] border border-[#66dceb] bg-[#66dceb]/[.07] shadow-[0_0_0_4px_rgba(102,220,235,.08)]">
-                <span className="absolute -top-5 left-0 rounded-[5px] bg-[#66dceb] px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#081013]">UI CHANGE</span>
+                <span className="absolute -top-5 left-0 rounded-[5px] bg-[#66dceb] px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#081013]">
+                  UI CHANGE
+                </span>
               </div>
               <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-[12px] border border-white/[.1] bg-[#0b0e14]/90 px-3 py-2.5 text-white shadow-2xl backdrop-blur-xl">
-                <span className="flex items-center gap-2 text-xs font-medium"><span className="size-1.5 rounded-full bg-[#67e0ca] shadow-[0_0_8px_#67e0ca]" /> 示例 · 识别插件分类变化</span>
-                <span className="font-mono text-[10px] text-white/42">01:37.000</span>
+                <span className="flex items-center gap-2 text-xs font-medium">
+                  <span className="size-1.5 rounded-full bg-[#67e0ca] shadow-[0_0_8px_#67e0ca]" />{' '}
+                  示例 · 识别插件分类变化
+                </span>
+                <span className="font-mono text-[10px] text-white/55">
+                  01:37.000
+                </span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-[14px] bg-white/[.07]">
-              {[['SCENE', '0.84'], ['SIMILARITY', '12%'], ['KEEP', 'YES']].map(([label, value]) => (
+              {[
+                ['SCENE', '0.84'],
+                ['SIMILARITY', '12%'],
+                ['KEEP', 'YES'],
+              ].map(([label, value]) => (
                 <div key={label} className="bg-[#10131a] px-3 py-3">
-                  <p className="text-[9px] uppercase tracking-[.12em] text-white/24">{label}</p>
-                  <p className={`mt-1 font-mono text-xs ${label === 'KEEP' ? 'text-[#6fe2cd]' : 'text-white/68'}`}>{value}</p>
+                  <p className="text-[9px] uppercase tracking-[.12em] text-white/48">
+                    {label}
+                  </p>
+                  <p
+                    className={`mt-1 font-mono text-xs ${label === 'KEEP' ? 'text-[#6fe2cd]' : 'text-white/68'}`}
+                  >
+                    {value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -440,49 +728,224 @@ function ProcessingView({ onCancel, onComplete }: { onCancel: () => void; onComp
   );
 }
 
-function buildMarkdown(title: string, summary: string, steps: TutorialStep[], assetOrigin: string) {
-  const body = steps
-    .filter((step) => step.included)
-    .map(
-      (step, index) =>
-        `## ${index + 1}. ${step.title}\n\n**视频时间：${step.time}**\n\n${step.body}\n\n![${step.title}](${assetOrigin}${step.image})`,
-    )
-    .join('\n\n');
-  return `# ${title}\n\n> ${summary}\n\n${body}\n`;
-}
-
 function EditorView({ onReset }: { onReset: () => void }) {
   const stepsScrollerRef = useRef<HTMLDivElement>(null);
-  const [steps, setSteps] = useState(() => INITIAL_STEPS.map((step) => ({ ...step })));
+  const contentScrollerRef = useRef<HTMLElement>(null);
+  const noticeTimerRef = useRef<number | null>(null);
+  const [steps, setSteps] = useState(() =>
+    INITIAL_STEPS.map((step) => ({ ...step })),
+  );
   const [selectedId, setSelectedId] = useState(6);
   const [mode, setMode] = useState<EditorMode>('edit');
-  const [title, setTitle] = useState('ChatGPT Work 快速导览：从新对话到插件与 GPTs');
-  const [summary, setSummary] = useState('这段操作演示了 ChatGPT Work 网页版中的主要入口，并由 2 分 41 秒的无声录屏自动生成。');
-  const [notice, setNotice] = useState('');
-  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
-  const [editedStepIds, setEditedStepIds] = useState<Set<number>>(() => new Set());
+  const [title, setTitle] = useState(
+    'ChatGPT Work 快速导览：从新对话到插件与 GPTs',
+  );
+  const [summary, setSummary] = useState(
+    '这段操作演示了 ChatGPT Work 网页版中的主要入口，并由 2 分 41 秒的无声录屏自动生成。',
+  );
+  const [notice, setNotice] = useState<NoticeState | null>(null);
+  const [exporting, setExporting] = useState<
+    'markdown' | 'rich' | 'zip' | null
+  >(null);
+  const [editedStepIds, setEditedStepIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [reviewedStepIds, setReviewedStepIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [privacyReviewedIds, setPrivacyReviewedIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [articleCopyEdited, setArticleCopyEdited] = useState(false);
+  const [articleCopyReviewed, setArticleCopyReviewed] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+
+  const showNotice = (
+    message: string,
+    tone: NoticeState['tone'] = 'success',
+  ) => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setNotice({ message, tone });
+    noticeTimerRef.current = window.setTimeout(() => setNotice(null), 2600);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw) as Partial<StoredDraft>;
+          if (draft.version === DRAFT_VERSION && Array.isArray(draft.steps)) {
+            const storedById = new Map(
+              draft.steps.map((step) => [step.id, step]),
+            );
+            const orderedIds = Array.from(
+              new Set(
+                draft.steps
+                  .map((step) => step.id)
+                  .filter((id) => INITIAL_STEPS.some((step) => step.id === id)),
+              ),
+            );
+            const allIds = [
+              ...orderedIds,
+              ...INITIAL_STEPS.map((step) => step.id).filter(
+                (id) => !orderedIds.includes(id),
+              ),
+            ];
+            setSteps(
+              allIds.map((id) => {
+                const base = INITIAL_STEPS.find((step) => step.id === id)!;
+                const stored = storedById.get(id);
+                return {
+                  ...base,
+                  title:
+                    typeof stored?.title === 'string'
+                      ? stored.title.slice(0, 40)
+                      : base.title,
+                  body:
+                    typeof stored?.body === 'string'
+                      ? stored.body.slice(0, 300)
+                      : base.body,
+                  included:
+                    typeof stored?.included === 'boolean'
+                      ? stored.included
+                      : base.included,
+                };
+              }),
+            );
+            if (typeof draft.title === 'string')
+              setTitle(draft.title.slice(0, 64));
+            if (typeof draft.summary === 'string')
+              setSummary(draft.summary.slice(0, 160));
+            setArticleCopyEdited(draft.articleCopyEdited === true);
+            setArticleCopyReviewed(draft.articleCopyReviewed === true);
+            if (
+              typeof draft.selectedId === 'number' &&
+              INITIAL_STEPS.some((step) => step.id === draft.selectedId)
+            )
+              setSelectedId(draft.selectedId);
+            if (draft.mode === 'edit' || draft.mode === 'preview')
+              setMode(draft.mode);
+            const validId = (id: number) =>
+              INITIAL_STEPS.some((step) => step.id === id);
+            setEditedStepIds(
+              new Set((draft.editedStepIds ?? []).filter(validId)),
+            );
+            setReviewedStepIds(
+              new Set((draft.reviewedStepIds ?? []).filter(validId)),
+            );
+            setPrivacyReviewedIds(
+              new Set((draft.privacyReviewedIds ?? []).filter(validId)),
+            );
+          }
+        }
+      } catch {
+        clearStoredDraft();
+      } finally {
+        setDraftReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const timer = window.setTimeout(() => {
+      const draft: StoredDraft = {
+        version: DRAFT_VERSION,
+        steps: steps.map(({ id, title: stepTitle, body, included }) => ({
+          id,
+          title: stepTitle,
+          body,
+          included,
+        })),
+        selectedId,
+        mode,
+        title,
+        summary,
+        articleCopyEdited,
+        articleCopyReviewed,
+        editedStepIds: [...editedStepIds],
+        reviewedStepIds: [...reviewedStepIds],
+        privacyReviewedIds: [...privacyReviewedIds],
+      };
+      try {
+        window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      } catch {
+        showNotice('浏览器无法保存草稿，请及时导出图文包', 'warning');
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    draftReady,
+    articleCopyEdited,
+    articleCopyReviewed,
+    editedStepIds,
+    mode,
+    privacyReviewedIds,
+    reviewedStepIds,
+    selectedId,
+    steps,
+    summary,
+    title,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    },
+    [],
+  );
 
   const selectedStep = steps.find((step) => step.id === selectedId) ?? steps[0];
-  const includedSteps = useMemo(() => steps.filter((step) => step.included), [steps]);
+  const includedSteps = useMemo(
+    () => steps.filter((step) => step.included),
+    [steps],
+  );
 
   useEffect(() => {
     const scroller = stepsScrollerRef.current;
-    if (!scroller || window.innerWidth >= 1024) return;
-    const item = scroller.querySelector<HTMLElement>(`[data-step-id="${selectedId}"]`);
+    if (!scroller || mode !== 'edit' || window.innerWidth >= 1024) return;
+    const item = scroller.querySelector<HTMLElement>(
+      `[data-step-id="${selectedId}"]`,
+    );
     if (!item) return;
     scroller.scrollTo({
       left: item.offsetLeft - (scroller.clientWidth - item.clientWidth) / 2,
       behavior: 'smooth',
     });
-  }, [selectedId]);
+  }, [mode, selectedId]);
+
+  useEffect(() => {
+    contentScrollerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.innerWidth < 1024)
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [mode, selectedId]);
 
   const updateStep = (id: number, patch: Partial<TutorialStep>) => {
-    setSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+    setSteps((current) =>
+      current.map((step) => (step.id === id ? { ...step, ...patch } : step)),
+    );
   };
 
-  const updateStepCopy = (id: number, patch: Pick<TutorialStep, 'title'> | Pick<TutorialStep, 'body'>) => {
+  const updateStepCopy = (
+    id: number,
+    patch: Pick<TutorialStep, 'title'> | Pick<TutorialStep, 'body'>,
+  ) => {
     updateStep(id, patch);
     setEditedStepIds((current) => new Set(current).add(id));
+    setReviewedStepIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const updateArticleCopy = (field: 'title' | 'summary', value: string) => {
+    if (field === 'title') setTitle(value);
+    else setSummary(value);
+    setArticleCopyEdited(true);
+    setArticleCopyReviewed(false);
   };
 
   const moveStep = (id: number, direction: -1 | 1) => {
@@ -496,274 +959,890 @@ function EditorView({ onReset }: { onReset: () => void }) {
     });
   };
 
-  const showNotice = (message: string) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(''), 2200);
-  };
-
-  const copyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(buildMarkdown(title, summary, steps, window.location.origin));
-      showNotice('草稿 Markdown 已复制');
-    } catch {
-      showNotice('浏览器未授权剪贴板，请使用下载');
-    }
-  };
-
-  const downloadMarkdown = () => {
-    const blob = new Blob([buildMarkdown(title, summary, steps, window.location.origin)], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    const safeTitle = title.trim().replace(/[\\/:*?"<>|]/g, '-').slice(0, 60) || '录见-教程草稿';
-    anchor.download = `${safeTitle}.md`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 500);
-    showNotice('教程已导出');
-  };
-
   const selectedIndex = steps.findIndex((step) => step.id === selectedId);
   const selectedStepEdited = editedStepIds.has(selectedStep.id);
+  const selectedStepReviewed = reviewedStepIds.has(selectedStep.id);
+  const selectedStepNeedsReview = selectedStepEdited && !selectedStepReviewed;
   const contentReady = Boolean(
     title.trim() &&
     summary.trim() &&
     includedSteps.length > 0 &&
     includedSteps.every((step) => step.title.trim() && step.body.trim()),
   );
-  const timestampsReady = includedSteps.length > 0 && includedSteps.every((step) => step.time);
-  const screenshotsReady = includedSteps.length > 0 && includedSteps.every((step) => step.image);
+  const timestampsReady =
+    includedSteps.length > 0 && includedSteps.every((step) => step.time);
+  const screenshotsReady =
+    includedSteps.length > 0 && includedSteps.every((step) => step.image);
+  const pendingReviewSteps = includedSteps.filter(
+    (step) => editedStepIds.has(step.id) && !reviewedStepIds.has(step.id),
+  );
+  const articleCopyNeedsReview = articleCopyEdited && !articleCopyReviewed;
+  const pendingReviewCount =
+    pendingReviewSteps.length + (articleCopyNeedsReview ? 1 : 0);
+  const copyReviewReady = pendingReviewCount === 0;
+  const privacyReviewedCount = includedSteps.filter((step) =>
+    privacyReviewedIds.has(step.id),
+  ).length;
+  const privacyReady =
+    includedSteps.length > 0 && privacyReviewedCount === includedSteps.length;
   const checkItems: Array<[string, string, boolean]> = [
-    ['内容完整', contentReady ? `${includedSteps.length} 个有效步骤` : '请补全标题与步骤', contentReady],
-    ['保留时间戳', `${includedSteps.filter((step) => step.time).length} / ${includedSteps.length}`, timestampsReady],
-    ['示例截图齐全', `${includedSteps.filter((step) => step.image).length} / ${includedSteps.length}`, screenshotsReady],
-    ['隐私人工确认', privacyConfirmed ? '已逐张确认' : '待人工确认', privacyConfirmed],
+    [
+      '内容完整',
+      contentReady ? `${includedSteps.length} 个有效步骤` : '请补全标题与步骤',
+      contentReady,
+    ],
+    [
+      '保留时间戳',
+      `${includedSteps.filter((step) => step.time).length} / ${includedSteps.length}`,
+      timestampsReady,
+    ],
+    [
+      '示例截图齐全',
+      `${includedSteps.filter((step) => step.image).length} / ${includedSteps.length}`,
+      screenshotsReady,
+    ],
+    [
+      '修改内容复核',
+      copyReviewReady ? '没有待核对修改' : `${pendingReviewCount} 项待核对`,
+      copyReviewReady,
+    ],
+    [
+      '截图隐私复核',
+      `${privacyReviewedCount} / ${includedSteps.length} 已检查`,
+      privacyReady,
+    ],
   ];
-  const completedCheckCount = checkItems.filter(([, , passed]) => passed).length;
+  const completedCheckCount = checkItems.filter(
+    ([, , passed]) => passed,
+  ).length;
   const publishReady = completedCheckCount === checkItems.length;
 
-  const requestDownload = () => {
+  const exportInput = { title, summary, steps };
+  const publicImagePath = (step: { image: string }) =>
+    `${PUBLIC_SITE_ORIGIN}${step.image}`;
+
+  const validateDelivery = () => {
     if (!contentReady) {
-      showNotice('请先补全标题、摘要和至少一个步骤');
-      return;
+      showNotice('请先补全标题、摘要和至少一个有效步骤', 'warning');
+      return false;
     }
-    if (!privacyConfirmed) {
-      showNotice('导出前请先完成隐私人工确认');
-      return;
+    if (!timestampsReady || !screenshotsReady) {
+      showNotice('时间戳或截图不完整，暂时无法交付', 'warning');
+      return false;
     }
-    downloadMarkdown();
+    if (!copyReviewReady) {
+      showNotice(`还有 ${pendingReviewCount} 项修改待核对`, 'warning');
+      return false;
+    }
+    if (!privacyReady) {
+      showNotice(
+        `请逐张检查截图隐私（${privacyReviewedCount}/${includedSteps.length}）`,
+        'warning',
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const requestDelivery = async (kind: 'markdown' | 'rich' | 'zip') => {
+    if (!validateDelivery() || exporting) return;
+    setExporting(kind);
+    try {
+      const markdown = buildMarkdown(exportInput, publicImagePath);
+      if (kind === 'markdown') {
+        await navigator.clipboard.writeText(markdown);
+        showNotice('在线版 Markdown 已复制');
+      } else if (kind === 'rich') {
+        const result = await writeRichClipboard(
+          buildWechatHtml(exportInput, publicImagePath),
+          markdown,
+        );
+        showNotice(
+          result === 'rich'
+            ? '公众号格式已复制；若图片未带入，请使用图文包'
+            : '浏览器不支持富文本，已复制 Markdown',
+          result === 'rich' ? 'success' : 'warning',
+        );
+      } else {
+        const archive = await createTutorialZip(exportInput);
+        downloadBlob(archive, `${safeBasename(title)}-图文包.zip`);
+        showNotice('图文包已下载，可离线使用');
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '交付失败，请重试';
+      showNotice(message, 'error');
+    } finally {
+      setExporting(null);
+    }
   };
 
   const polishSelectedStep = () => {
+    const suffix = ' 完成后，请确认页面标题与预期结果一致。';
     if (!selectedStep.body.includes('完成后，请确认')) {
+      if (selectedStep.body.length + suffix.length > 300) {
+        showNotice('正文已接近 300 字上限，无法继续润色', 'warning');
+        return;
+      }
       updateStepCopy(selectedStep.id, {
-        body: `${selectedStep.body} 完成后，请确认页面标题与预期结果一致。`,
+        body: `${selectedStep.body}${suffix}`,
       });
+      showNotice('已应用一条润色示例');
+      return;
     }
-    showNotice('已应用一条润色示例');
+    showNotice('这条润色已经应用', 'warning');
+  };
+
+  const confirmSelectedCopy = () => {
+    setReviewedStepIds((current) => new Set(current).add(selectedStep.id));
+    showNotice(`第 ${selectedIndex + 1} 步文案已核对`);
+  };
+
+  const confirmArticleCopy = () => {
+    setArticleCopyReviewed(true);
+    showNotice('文章标题与摘要已核对');
+  };
+
+  const confirmSelectedPrivacy = () => {
+    if (!selectedStep.included) {
+      showNotice('该步骤未纳入成稿，无需检查', 'warning');
+      return;
+    }
+    setPrivacyReviewedIds((current) => new Set(current).add(selectedStep.id));
+    showNotice(`第 ${selectedIndex + 1} 张截图已检查`);
+  };
+
+  const resetDraft = () => {
+    clearStoredDraft();
+    onReset();
   };
 
   return (
     <main className="min-h-screen bg-[#080a0f] text-white lg:h-screen lg:overflow-hidden">
+      <h1 className="sr-only">{title}</h1>
       <header className="sticky top-0 z-30 border-b border-white/[.075] bg-[#090b11]/92 backdrop-blur-2xl lg:static">
         <div className="flex h-16 items-center gap-3 px-4 sm:px-5">
           <Brand compact />
           <div className="mx-2 hidden h-6 w-px bg-white/[.08] sm:block" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-white/90">{title}</p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-[.1em] text-white/36">示例草稿 · 内置数据</p>
+            <p className="truncate text-[13px] font-medium text-white/90">
+              {title}
+            </p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-[.1em] text-white/52">
+              {draftReady
+                ? '示例草稿 · 已在本机自动保存'
+                : '示例草稿 · 正在恢复'}
+            </p>
           </div>
           <div className="hidden rounded-[10px] border border-white/[.075] bg-white/[.035] p-1 sm:flex">
-            <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')} className={`rounded-[7px] px-3 py-1.5 text-[11px] font-medium transition ${mode === 'edit' ? 'bg-white/[.1] text-white shadow-sm' : 'text-white/38 hover:text-white/70'}`}>编辑步骤</button>
-            <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')} className={`rounded-[7px] px-3 py-1.5 text-[11px] font-medium transition ${mode === 'preview' ? 'bg-white/[.1] text-white shadow-sm' : 'text-white/38 hover:text-white/70'}`}>成稿预览</button>
+            <button
+              aria-pressed={mode === 'edit'}
+              onClick={() => setMode('edit')}
+              className={`rounded-[7px] px-3 py-1.5 text-[11px] font-medium transition ${mode === 'edit' ? 'bg-white/[.1] text-white shadow-sm' : 'text-white/52 hover:text-white/80'}`}
+            >
+              编辑步骤
+            </button>
+            <button
+              aria-pressed={mode === 'preview'}
+              onClick={() => setMode('preview')}
+              className={`rounded-[7px] px-3 py-1.5 text-[11px] font-medium transition ${mode === 'preview' ? 'bg-white/[.1] text-white shadow-sm' : 'text-white/52 hover:text-white/80'}`}
+            >
+              成稿预览
+            </button>
           </div>
-          <Button variant="outline" className="hidden border-white/[.09] bg-white/[.035] text-white/70 hover:bg-white/[.075] hover:text-white sm:inline-flex" onClick={copyMarkdown}><Clipboard data-icon="inline-start" /> 复制 Markdown</Button>
-          <Button className="border-0 bg-gradient-to-r from-[#7457ff] to-[#54cfe8] text-white shadow-[0_10px_28px_rgba(116,87,255,.22)] hover:brightness-110" onClick={requestDownload}><Download data-icon="inline-start" /> <span className="hidden sm:inline">导出 Markdown</span><span className="sm:hidden">导出</span></Button>
+          <Button
+            variant="outline"
+            className="hidden border-white/[.09] bg-white/[.035] text-white/70 hover:bg-white/[.075] hover:text-white sm:inline-flex"
+            disabled={Boolean(exporting)}
+            onClick={() => void requestDelivery('rich')}
+          >
+            {exporting === 'rich' ? (
+              <LoaderCircle className="animate-spin" data-icon="inline-start" />
+            ) : (
+              <Clipboard data-icon="inline-start" />
+            )}
+            复制公众号排版
+          </Button>
+          <Button
+            className="border-0 bg-gradient-to-r from-[#7457ff] to-[#54cfe8] text-white shadow-[0_10px_28px_rgba(116,87,255,.22)] hover:brightness-110"
+            disabled={Boolean(exporting)}
+            onClick={() => void requestDelivery('zip')}
+          >
+            {exporting === 'zip' ? (
+              <LoaderCircle className="animate-spin" data-icon="inline-start" />
+            ) : (
+              <Download data-icon="inline-start" />
+            )}
+            <span className="hidden sm:inline">下载独立图文包</span>
+            <span className="sm:hidden">图文包</span>
+          </Button>
         </div>
       </header>
 
       <div className="sticky top-16 z-20 border-b border-white/[.07] bg-[#090b11]/92 px-4 py-2 backdrop-blur-2xl sm:hidden">
         <div className="mx-auto flex max-w-4xl rounded-[10px] border border-white/[.075] bg-white/[.035] p-1">
-          <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')} className={`flex-1 rounded-[7px] px-3 py-2 text-xs font-medium transition ${mode === 'edit' ? 'bg-white/[.1] text-white' : 'text-white/50'}`}>编辑步骤</button>
-          <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')} className={`flex-1 rounded-[7px] px-3 py-2 text-xs font-medium transition ${mode === 'preview' ? 'bg-white/[.1] text-white' : 'text-white/50'}`}>成稿预览</button>
+          <button
+            aria-pressed={mode === 'edit'}
+            onClick={() => setMode('edit')}
+            className={`flex-1 rounded-[7px] px-3 py-2 text-xs font-medium transition ${mode === 'edit' ? 'bg-white/[.1] text-white' : 'text-white/50'}`}
+          >
+            编辑步骤
+          </button>
+          <button
+            aria-pressed={mode === 'preview'}
+            onClick={() => setMode('preview')}
+            className={`flex-1 rounded-[7px] px-3 py-2 text-xs font-medium transition ${mode === 'preview' ? 'bg-white/[.1] text-white' : 'text-white/50'}`}
+          >
+            成稿预览
+          </button>
         </div>
       </div>
 
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-x-hidden lg:h-[calc(100vh-64px)] lg:grid-cols-[276px_minmax(0,1fr)_270px]">
-        <aside className={`${mode === 'preview' ? 'hidden lg:block' : ''} min-w-0 overflow-hidden border-b border-white/[.07] bg-[#0b0e14] lg:overflow-y-auto lg:border-b-0 lg:border-r`}>
+        <aside
+          aria-label="教程步骤"
+          className={`${mode === 'preview' ? 'hidden lg:block' : ''} min-w-0 overflow-hidden border-b border-white/[.07] bg-[#0b0e14] lg:overflow-y-auto lg:border-b-0 lg:border-r`}
+        >
           <div className="hidden items-start justify-between p-4 pb-3 lg:flex">
             <div>
               <p className="text-[13px] font-medium text-white/88">教程步骤</p>
-              <p className="mt-1 text-[11px] text-white/30">44 个候选 → {includedSteps.length} 步成稿</p>
+              <p className="mt-1 text-[11px] text-white/50">
+                44 个候选 → {includedSteps.length} 步成稿
+              </p>
             </div>
-            <Badge className="h-6 border-[#8873ff]/20 bg-[#8065ff]/10 px-2.5 text-[9px] font-medium tracking-[.08em] text-[#a797ff]" variant="outline">示例草稿</Badge>
+            <Badge
+              className="h-6 border-[#8873ff]/20 bg-[#8065ff]/10 px-2.5 text-[9px] font-medium tracking-[.08em] text-[#a797ff]"
+              variant="outline"
+            >
+              示例草稿
+            </Badge>
           </div>
-          <div ref={stepsScrollerRef} className="flex gap-2 overflow-x-auto px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:block lg:space-y-1 lg:overflow-visible lg:pt-0">
+          <div
+            ref={stepsScrollerRef}
+            className="flex gap-2 overflow-x-auto px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:block lg:space-y-1 lg:overflow-visible lg:pt-0"
+          >
             {steps.map((step, index) => (
               <button
                 key={step.id}
                 data-step-id={step.id}
                 type="button"
-                aria-current={selectedId === step.id && mode === 'edit' ? 'step' : undefined}
+                aria-current={
+                  selectedId === step.id && mode === 'edit' ? 'step' : undefined
+                }
                 aria-label={`步骤 ${index + 1}：${step.title}，${step.included ? '已纳入成稿' : '已从成稿隐藏'}`}
-                onClick={() => { setSelectedId(step.id); setMode('edit'); }}
+                onClick={() => {
+                  setSelectedId(step.id);
+                  setMode('edit');
+                }}
                 className={`group relative flex min-w-[225px] items-center gap-3 overflow-hidden rounded-[12px] border p-2 text-left transition duration-200 lg:min-w-0 lg:w-full ${selectedId === step.id && mode === 'edit' ? 'border-[#8065ff]/35 bg-[#8065ff]/[.09]' : 'border-transparent hover:border-white/[.07] hover:bg-white/[.035]'} ${step.included ? '' : 'opacity-35'}`}
               >
-                {selectedId === step.id && mode === 'edit' && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gradient-to-b from-[#927fff] to-[#59d7e9]" />}
+                {selectedId === step.id && mode === 'edit' && (
+                  <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gradient-to-b from-[#927fff] to-[#59d7e9]" />
+                )}
                 <div className="relative h-12 w-[70px] shrink-0 overflow-hidden rounded-[8px] border border-white/[.07] bg-white/[.04]">
-                  <img src={step.image} alt="" className="h-full w-full object-cover object-top" />
-                  <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-[4px] bg-[#090b11]/88 font-mono text-[8px] font-medium text-white">{String(index + 1).padStart(2, '0')}</span>
+                  <Image
+                    src={step.image}
+                    alt=""
+                    width={1600}
+                    height={step.imageHeight}
+                    unoptimized
+                    className="h-full w-full object-cover object-top"
+                  />
+                  <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-[4px] bg-[#090b11]/88 font-mono text-[8px] font-medium text-white">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[11px] font-medium text-white/78">{step.title}</p>
-                  <p className="mt-1 flex items-center gap-1.5 font-mono text-[9px] text-white/27"><Video className="size-2.5" /> {step.time} · {step.confidence}%</p>
+                  <p className="truncate text-[11px] font-medium text-white/78">
+                    {step.title}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 font-mono text-[9px] text-white/52">
+                    <Video className="size-2.5" /> {step.time} ·{' '}
+                    {step.confidence}%
+                  </p>
                 </div>
-                {step.included ? <Eye className="size-3 text-white/18" /> : <EyeOff className="size-3 text-white/35" />}
+                {step.included ? (
+                  <Eye className="size-3 text-white/18" />
+                ) : (
+                  <EyeOff className="size-3 text-white/55" />
+                )}
               </button>
             ))}
           </div>
         </aside>
 
-        <section className={`${mode === 'preview' ? 'order-3' : 'order-2'} relative min-w-0 overflow-y-auto bg-[#080a0f] px-4 py-6 sm:px-8 lg:order-none lg:px-10`}>
+        <section
+          ref={contentScrollerRef}
+          className="order-2 relative min-w-0 overflow-y-auto bg-[#080a0f] px-4 py-6 sm:px-8 lg:order-none lg:px-10"
+        >
           <div className="pointer-events-none absolute left-1/2 top-0 h-72 w-3/4 -translate-x-1/2 rounded-full bg-[#7457ff]/[.07] blur-[100px]" />
           {mode === 'edit' ? (
             <div className="relative mx-auto max-w-4xl">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <Badge className="h-6 border-white/[.08] bg-white/[.04] font-mono text-[9px] text-white/52" variant="outline">STEP {String(selectedIndex + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}</Badge>
-                  <Badge className={`h-6 text-[10px] ${selectedStepEdited ? 'border-amber-300/15 bg-amber-300/[.07] text-amber-200' : 'border-[#63ddc5]/15 bg-[#63ddc5]/[.07] text-[#72dfca]'}`} variant="outline">
-                    {selectedStepEdited ? <><WandSparkles data-icon="inline-start" /> 文案已修改 · 待核对</> : <><CheckCircle2 data-icon="inline-start" /> 初始匹配 {selectedStep.confidence}%</>}
+                  <Badge
+                    className="h-6 border-white/[.08] bg-white/[.04] font-mono text-[9px] text-white/52"
+                    variant="outline"
+                  >
+                    STEP {String(selectedIndex + 1).padStart(2, '0')} /{' '}
+                    {String(steps.length).padStart(2, '0')}
+                  </Badge>
+                  <Badge
+                    className={`h-6 text-[10px] ${selectedStepNeedsReview ? 'border-amber-300/15 bg-amber-300/[.07] text-amber-200' : 'border-[#63ddc5]/15 bg-[#63ddc5]/[.07] text-[#72dfca]'}`}
+                    variant="outline"
+                  >
+                    {selectedStepNeedsReview ? (
+                      <>
+                        <WandSparkles data-icon="inline-start" /> 文案已修改 ·
+                        待核对
+                      </>
+                    ) : selectedStepReviewed ? (
+                      <>
+                        <BookOpenCheck data-icon="inline-start" />{' '}
+                        修改已人工核对
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 data-icon="inline-start" /> 内置样例{' '}
+                        {selectedStep.confidence}%
+                      </>
+                    )}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08]" size="icon-sm" variant="outline" aria-label="上移步骤" disabled={selectedIndex === 0} onClick={() => { moveStep(selectedStep.id, -1); showNotice(`已移至第 ${selectedIndex} 步`); }}><ArrowUp /></Button>
-                  <Button className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08]" size="icon-sm" variant="outline" aria-label="下移步骤" disabled={selectedIndex === steps.length - 1} onClick={() => { moveStep(selectedStep.id, 1); showNotice(`已移至第 ${selectedIndex + 2} 步`); }}><ArrowDown /></Button>
-                  <Button className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08] hover:text-white" variant="outline" size="sm" onClick={() => updateStep(selectedStep.id, { included: !selectedStep.included })}>
-                    {selectedStep.included ? <><EyeOff data-icon="inline-start" /> 从成稿隐藏</> : <><Eye data-icon="inline-start" /> 恢复步骤</>}
+                  <Button
+                    className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08]"
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="上移步骤"
+                    disabled={selectedIndex === 0}
+                    onClick={() => {
+                      moveStep(selectedStep.id, -1);
+                      showNotice(`已移至第 ${selectedIndex} 步`);
+                    }}
+                  >
+                    <ArrowUp />
+                  </Button>
+                  <Button
+                    className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08]"
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="下移步骤"
+                    disabled={selectedIndex === steps.length - 1}
+                    onClick={() => {
+                      moveStep(selectedStep.id, 1);
+                      showNotice(`已移至第 ${selectedIndex + 2} 步`);
+                    }}
+                  >
+                    <ArrowDown />
+                  </Button>
+                  <Button
+                    className="border-white/[.08] bg-white/[.035] text-white/60 hover:bg-white/[.08] hover:text-white"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      updateStep(selectedStep.id, {
+                        included: !selectedStep.included,
+                      })
+                    }
+                  >
+                    {selectedStep.included ? (
+                      <>
+                        <EyeOff data-icon="inline-start" /> 从成稿隐藏
+                      </>
+                    ) : (
+                      <>
+                        <Eye data-icon="inline-start" /> 恢复步骤
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
 
-              <article className={`overflow-hidden rounded-[20px] border border-white/[.09] bg-[#10131a] shadow-[0_30px_90px_rgba(0,0,0,.34)] transition ${selectedStep.included ? '' : 'opacity-55'}`}>
+              <article
+                className={`overflow-hidden rounded-[20px] border border-white/[.09] bg-[#10131a] shadow-[0_30px_90px_rgba(0,0,0,.34)] transition ${selectedStep.included ? '' : 'opacity-55'}`}
+              >
                 <div className="relative border-b border-white/[.07] bg-[#0b0d12] p-2 sm:p-3">
-                  <img src={selectedStep.image} alt={selectedStep.title} className="aspect-[16/9] w-full rounded-[13px] bg-white object-contain" />
+                  <Image
+                    src={selectedStep.image}
+                    alt={selectedStep.title}
+                    width={1600}
+                    height={selectedStep.imageHeight}
+                    unoptimized
+                    className="aspect-[16/9] w-full rounded-[13px] bg-white object-contain"
+                  />
                   <div className="absolute bottom-5 left-5 flex items-center gap-2 rounded-[9px] border border-white/[.08] bg-[#090b11]/88 px-3 py-2 font-mono text-[10px] text-white/70 shadow-xl backdrop-blur-xl">
-                    <Video className="size-3 text-[#68dfca]" /> SOURCE {selectedStep.time}
+                    <Video className="size-3 text-[#68dfca]" /> SOURCE{' '}
+                    {selectedStep.time}
                   </div>
-                  <Button className="absolute right-5 top-5 border-white/[.1] bg-[#0b0e14]/85 text-white/50 backdrop-blur" variant="outline" size="sm" disabled>
+                  <Button
+                    className="absolute right-5 top-5 border-white/[.1] bg-[#0b0e14]/85 text-white/50 backdrop-blur"
+                    variant="outline"
+                    size="sm"
+                    disabled
+                  >
                     <ImageIcon data-icon="inline-start" /> 替换截图 · 产品版
                   </Button>
                 </div>
 
                 <div className="space-y-5 p-5 sm:p-7">
                   <div>
-                    <label htmlFor="step-title" className="mb-2 block text-[10px] font-medium uppercase tracking-[.14em] text-white/30">步骤标题</label>
-                    <Input id="step-title" value={selectedStep.title} onChange={(event) => updateStepCopy(selectedStep.id, { title: event.target.value })} className="h-12 border border-white/[.07] bg-white/[.035] px-4 text-base font-medium text-white shadow-none focus-visible:ring-[#8065ff]/25" />
+                    <div className="mb-2 flex items-center justify-between text-[10px] font-medium uppercase tracking-[.14em] text-white/52">
+                      <label htmlFor="step-title">步骤标题</label>
+                      <span className="font-mono tracking-normal text-white/55">
+                        {selectedStep.title.length} / 40
+                      </span>
+                    </div>
+                    <Input
+                      id="step-title"
+                      maxLength={40}
+                      value={selectedStep.title}
+                      onChange={(event) =>
+                        updateStepCopy(selectedStep.id, {
+                          title: event.target.value,
+                        })
+                      }
+                      className="h-12 border border-white/[.07] bg-white/[.035] px-4 text-base font-medium text-white shadow-none focus-visible:ring-[#8065ff]/25"
+                    />
                   </div>
                   <div>
-                    <div className="mb-2 flex items-center justify-between text-[10px] font-medium uppercase tracking-[.14em] text-white/36">
+                    <div className="mb-2 flex items-center justify-between text-[10px] font-medium uppercase tracking-[.14em] text-white/52">
                       <label htmlFor="step-body">操作说明</label>
-                      <button type="button" className="flex items-center gap-1 normal-case tracking-normal text-[#9c8aff] transition hover:text-[#b5a8ff]" onClick={polishSelectedStep}><WandSparkles className="size-3" /> 润色示例</button>
+                      <span className="flex items-center gap-3 normal-case tracking-normal">
+                        <span className="font-mono text-white/55">
+                          {selectedStep.body.length} / 300
+                        </span>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-[#aa9bff] transition hover:text-[#c5bcff]"
+                          onClick={polishSelectedStep}
+                        >
+                          <WandSparkles className="size-3" /> 润色示例
+                        </button>
+                      </span>
                     </div>
-                    <Textarea id="step-body" value={selectedStep.body} onChange={(event) => updateStepCopy(selectedStep.id, { body: event.target.value })} className="min-h-28 resize-none border border-white/[.07] bg-white/[.035] px-4 py-3 text-[13px] leading-7 text-white/78 shadow-none focus-visible:ring-[#8065ff]/25" />
+                    <Textarea
+                      id="step-body"
+                      maxLength={300}
+                      value={selectedStep.body}
+                      onChange={(event) =>
+                        updateStepCopy(selectedStep.id, {
+                          body: event.target.value,
+                        })
+                      }
+                      className="min-h-28 resize-y border border-white/[.07] bg-white/[.035] px-4 py-3 text-[13px] leading-7 text-white/78 shadow-none focus-visible:ring-[#8065ff]/25"
+                    />
                   </div>
-                  <div className="flex items-start gap-3 rounded-[13px] border border-[#866fff]/15 bg-[#8065ff]/[.065] p-4 text-xs leading-6 text-white/58">
+                  <div className="flex flex-col gap-3 rounded-[13px] border border-[#866fff]/15 bg-[#8065ff]/[.065] p-4 text-xs leading-6 text-white/64 sm:flex-row sm:items-start">
                     <Sparkles className="mt-1 size-3.5 shrink-0 text-[#9e8cff]" />
-                    <p><strong className="font-medium text-white/80">核对提示</strong> · {selectedStepEdited ? '文案已被修改，请重新确认说明与当前画面一致。' : '这是内置样例的初始匹配结果，发布前请确认界面名称仍然有效。'}</p>
+                    <div className="min-w-0 flex-1">
+                      <p>
+                        <strong className="font-medium text-white/86">
+                          核对提示
+                        </strong>{' '}
+                        ·{' '}
+                        {selectedStepNeedsReview
+                          ? '文案已被修改，请重新确认说明与当前画面一致。'
+                          : selectedStepReviewed
+                            ? '这处修改已人工核对，后续再次编辑会自动恢复待核对状态。'
+                            : '内置样例已预先核对；如果修改文案，需要重新确认。'}
+                      </p>
+                      {selectedStepEdited && (
+                        <Button
+                          className="mt-3 border-[#9d8cff]/20 bg-[#8b73ff]/10 text-[#c8beff] hover:bg-[#8b73ff]/20 disabled:opacity-70"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedStepReviewed}
+                          onClick={confirmSelectedCopy}
+                        >
+                          {selectedStepReviewed ? (
+                            <>
+                              <Check data-icon="inline-start" /> 修改已核对
+                            </>
+                          ) : (
+                            <>
+                              <BookOpenCheck data-icon="inline-start" />{' '}
+                              确认文字与画面一致
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </article>
 
               <div className="mt-5 flex items-center justify-between">
-                <Button className="border-white/[.08] bg-white/[.03] text-white/55 hover:bg-white/[.07] hover:text-white" variant="outline" disabled={selectedIndex === 0} onClick={() => setSelectedId(steps[selectedIndex - 1].id)}><ChevronLeft data-icon="inline-start" /> 上一步</Button>
-                <Button className="border-white/[.08] bg-white/[.03] text-white/55 hover:bg-white/[.07] hover:text-white" variant="outline" disabled={selectedIndex === steps.length - 1} onClick={() => setSelectedId(steps[selectedIndex + 1].id)}>下一步 <ChevronRight data-icon="inline-end" /></Button>
+                <Button
+                  className="border-white/[.08] bg-white/[.03] text-white/55 hover:bg-white/[.07] hover:text-white"
+                  variant="outline"
+                  disabled={selectedIndex === 0}
+                  onClick={() => setSelectedId(steps[selectedIndex - 1].id)}
+                >
+                  <ChevronLeft data-icon="inline-start" /> 上一步
+                </Button>
+                <Button
+                  className="border-white/[.08] bg-white/[.03] text-white/55 hover:bg-white/[.07] hover:text-white"
+                  variant="outline"
+                  disabled={selectedIndex === steps.length - 1}
+                  onClick={() => setSelectedId(steps[selectedIndex + 1].id)}
+                >
+                  下一步 <ChevronRight data-icon="inline-end" />
+                </Button>
               </div>
             </div>
           ) : (
             <article className="relative mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-white/[.08] bg-[#fbfbfd] px-5 py-9 text-[#14161d] shadow-[0_35px_110px_rgba(0,0,0,.38)] sm:px-12 sm:py-12">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#7657ff] via-[#8b72ff] to-[#55d7ea]" />
               <div className="mb-7 flex items-center justify-between">
-                <Badge className="h-6 border-[#7657ff]/10 bg-[#7657ff]/[.07] px-2.5 text-[9px] font-medium tracking-[.08em] text-[#6548e8]" variant="outline">示例草稿 · 可编辑</Badge>
-                <span className="font-mono text-[9px] uppercase tracking-[.12em] text-[#14161d]/35">{includedSteps.length} steps · 02:41</span>
+                <Badge
+                  className="h-6 border-[#7657ff]/10 bg-[#7657ff]/[.07] px-2.5 text-[9px] font-medium tracking-[.08em] text-[#6548e8]"
+                  variant="outline"
+                >
+                  示例草稿 · 可编辑
+                </Badge>
+                <span className="font-mono text-[9px] uppercase tracking-[.12em] text-[#14161d]/55">
+                  {includedSteps.length} steps · 02:41
+                </span>
               </div>
-              <Textarea rows={2} aria-label="教程标题" value={title} onChange={(event) => setTitle(event.target.value)} className="min-h-[4.8rem] resize-none overflow-hidden border-0 bg-transparent p-0 font-heading text-3xl! font-semibold leading-tight tracking-[-.045em] text-[#101219] shadow-none focus-visible:ring-[#7657ff]/20 sm:min-h-[6rem] sm:text-4xl!" />
-              <Textarea aria-label="教程摘要" value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-5 min-h-20 resize-none rounded-[12px] border border-black/[.04] bg-[#f2f3f7] px-4 py-3 text-sm leading-7 text-[#343844] shadow-none focus-visible:ring-[#7657ff]/15" />
+              <Textarea
+                aria-label="教程标题"
+                maxLength={64}
+                value={title}
+                onChange={(event) =>
+                  updateArticleCopy('title', event.target.value)
+                }
+                className="min-h-[5.4rem] field-sizing-content resize-y border-0 bg-transparent p-0 font-heading text-3xl! font-semibold leading-tight tracking-[-.045em] text-[#101219] shadow-none focus-visible:ring-[#7657ff]/20 sm:min-h-[6.5rem] sm:text-4xl!"
+              />
+              <p className="mt-1 text-right font-mono text-[10px] text-[#14161d]/55">
+                {title.length} / 64
+              </p>
+              <Textarea
+                aria-label="教程摘要"
+                maxLength={160}
+                value={summary}
+                onChange={(event) =>
+                  updateArticleCopy('summary', event.target.value)
+                }
+                className="mt-5 min-h-20 field-sizing-content resize-y rounded-[12px] border border-black/[.04] bg-[#f2f3f7] px-4 py-3 text-sm leading-7 text-[#343844] shadow-none focus-visible:ring-[#7657ff]/15"
+              />
+              <p className="mt-1 text-right font-mono text-[10px] text-[#14161d]/55">
+                {summary.length} / 160
+              </p>
+              {articleCopyEdited && (
+                <div
+                  className={`mt-4 flex flex-col gap-3 rounded-[12px] border p-4 text-sm sm:flex-row sm:items-center ${articleCopyNeedsReview ? 'border-amber-500/20 bg-amber-50 text-amber-950' : 'border-emerald-500/15 bg-emerald-50 text-emerald-950'}`}
+                >
+                  <BookOpenCheck className="size-4 shrink-0" />
+                  <p className="min-w-0 flex-1">
+                    {articleCopyNeedsReview
+                      ? '标题或摘要已修改，请确认表述准确后再导出。'
+                      : '文章标题与摘要已人工核对。'}
+                  </p>
+                  <Button
+                    className="border-black/10 bg-white text-[#343844] hover:bg-white/80 disabled:opacity-65"
+                    variant="outline"
+                    size="sm"
+                    disabled={articleCopyReviewed}
+                    onClick={confirmArticleCopy}
+                  >
+                    {articleCopyReviewed ? (
+                      <>
+                        <Check data-icon="inline-start" /> 已核对
+                      </>
+                    ) : (
+                      '确认标题与摘要'
+                    )}
+                  </Button>
+                </div>
+              )}
               <div className="mt-10 space-y-12">
                 {includedSteps.map((step, index) => (
                   <section key={step.id}>
                     <div className="mb-4 flex items-center gap-3">
-                      <span className="grid size-8 place-items-center rounded-[9px] bg-gradient-to-br from-[#7657ff] to-[#55cfe5] font-mono text-[10px] font-semibold text-white">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="grid size-8 place-items-center rounded-[9px] bg-gradient-to-br from-[#7657ff] to-[#55cfe5] font-mono text-[10px] font-semibold text-white">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
                       <div>
-                        <h2 className="text-lg font-semibold tracking-[-.02em] text-[#14161d]">{step.title}</h2>
-                        <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[.08em] text-[#14161d]/35">Video time · {step.time}</p>
+                        <h2 className="text-lg font-semibold tracking-[-.02em] text-[#14161d]">
+                          {step.title}
+                        </h2>
+                        <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[.08em] text-[#14161d]/55">
+                          Video time · {step.time}
+                        </p>
                       </div>
                     </div>
-                    <p className="mb-5 text-[15px] leading-7 text-[#343844]">{step.body}</p>
-                    <img src={step.image} alt={step.title} className="w-full rounded-[12px] border border-black/[.07] bg-[#f2f3f7] object-contain shadow-[0_14px_34px_rgba(12,16,28,.08)]" />
+                    <p className="mb-5 text-[15px] leading-7 text-[#343844]">
+                      {step.body}
+                    </p>
+                    <Image
+                      src={step.image}
+                      alt={step.title}
+                      width={1600}
+                      height={step.imageHeight}
+                      unoptimized
+                      className="h-auto w-full rounded-[12px] border border-black/[.07] bg-[#f2f3f7] object-contain shadow-[0_14px_34px_rgba(12,16,28,.08)]"
+                    />
                   </section>
                 ))}
               </div>
               <div className="mt-12 rounded-[14px] bg-[#11141c] p-5 text-white">
-                <div className="flex items-center gap-2"><span className={`size-1.5 rounded-full ${publishReady ? 'bg-[#67dfca] shadow-[0_0_9px_#67dfca]' : 'bg-amber-300'}`} /><p className="text-sm font-medium">{publishReady ? '发布检查已完成' : '内容已生成 · 待完成发布检查'}</p></div>
-                <p className="mt-2 text-xs leading-6 text-white/52">共 {includedSteps.length} 个步骤。界面名称和功能以录屏版本为准，导出前请完成内容与隐私核对。</p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`size-1.5 rounded-full ${publishReady ? 'bg-[#67dfca] shadow-[0_0_9px_#67dfca]' : 'bg-amber-300'}`}
+                  />
+                  <p className="text-sm font-medium">
+                    {publishReady
+                      ? '发布检查已完成'
+                      : '内容已生成 · 待完成发布检查'}
+                  </p>
+                </div>
+                <p className="mt-2 text-xs leading-6 text-white/52">
+                  共 {includedSteps.length}{' '}
+                  个步骤。界面名称和功能以录屏版本为准，导出前请完成内容与隐私核对。
+                </p>
               </div>
             </article>
           )}
         </section>
 
-        <aside className={`${mode === 'preview' ? 'order-2' : 'order-3'} min-w-0 border-t border-white/[.07] bg-[#0b0e14] p-4 lg:order-none lg:overflow-y-auto lg:border-l lg:border-t-0`}>
+        <aside
+          aria-label="发布检查与交付"
+          className="order-3 min-w-0 border-t border-white/[.07] bg-[#0b0e14] p-4 lg:order-none lg:overflow-y-auto lg:border-l lg:border-t-0"
+        >
           <div className="flex items-end justify-between">
-            <div><p className="text-[13px] font-medium text-white/88">发布检查</p><p className="mt-1 text-[10px] uppercase tracking-[.1em] text-white/34">Publish checklist</p></div>
-            <span className="font-mono text-xs font-medium text-[#6fe0cb]">{completedCheckCount}<span className="text-white/28"> / {checkItems.length} 完成</span></span>
+            <div>
+              <p className="text-[13px] font-medium text-white/88">发布检查</p>
+              <p className="mt-1 text-[10px] uppercase tracking-[.1em] text-white/52">
+                Publish checklist
+              </p>
+            </div>
+            <span className="font-mono text-xs font-medium text-[#6fe0cb]">
+              {completedCheckCount}
+              <span className="text-white/52"> / {checkItems.length} 完成</span>
+            </span>
           </div>
-          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-gradient-to-r from-[#7657ff] to-[#62ddcc] transition-all" style={{ width: `${(completedCheckCount / checkItems.length) * 100}%` }} /></div>
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/[.06]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#7657ff] to-[#62ddcc] transition-all"
+              style={{
+                width: `${(completedCheckCount / checkItems.length) * 100}%`,
+              }}
+            />
+          </div>
 
           <div className="mt-6 space-y-1.5">
             {checkItems.map(([label, value, passed]) => (
-              <div key={String(label)} className="flex items-center gap-3 rounded-[11px] border border-white/[.055] bg-white/[.025] p-3">
-                <span className={`grid size-7 place-items-center rounded-[8px] ${passed ? 'bg-[#64ddc6]/[.08] text-[#6fe2cc]' : 'bg-amber-400/[.08] text-amber-300'}`}>
-                  {passed ? <Check className="size-3.5" /> : <LockKeyhole className="size-3.5" />}
+              <div
+                key={String(label)}
+                className="flex items-center gap-3 rounded-[11px] border border-white/[.055] bg-white/[.025] p-3"
+              >
+                <span
+                  className={`grid size-7 place-items-center rounded-[8px] ${passed ? 'bg-[#64ddc6]/[.08] text-[#6fe2cc]' : 'bg-amber-400/[.08] text-amber-300'}`}
+                >
+                  {passed ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <LockKeyhole className="size-3.5" />
+                  )}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-white/74">{label}</p>
-                  <p className="mt-0.5 text-[11px] text-white/35">{value}</p>
+                  <p className="mt-0.5 text-[11px] text-white/55">{value}</p>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-6 rounded-[13px] border border-amber-300/10 bg-amber-300/[.045] p-4">
-            <div className="flex items-center gap-2 text-amber-200/85"><ShieldCheck className="size-3.5" /><p className="text-[11px] font-medium">隐私提示</p></div>
-            <p className="mt-2 text-[11px] leading-5 text-amber-100/50">内置示例截图已预先裁剪；本 Demo 不会扫描你选择的视频。正式发布仍需逐张检查。</p>
+            <div className="flex items-center justify-between gap-2 text-amber-100/90">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-3.5" />
+                <p className="text-[11px] font-medium">逐张截图检查</p>
+              </div>
+              <span className="font-mono text-[10px] text-amber-100/58">
+                {privacyReviewedCount}/{includedSteps.length}
+              </span>
+            </div>
+            <p className="mt-2 text-[11px] leading-5 text-amber-100/58">
+              只记录当前选中的截图，避免一次点击误把全部图片标记为已检查。
+            </p>
+            <div
+              className="mt-3 grid grid-cols-5 gap-1.5"
+              aria-label="截图隐私检查进度"
+            >
+              {includedSteps.map((step) => {
+                const checked = privacyReviewedIds.has(step.id);
+                const current = step.id === selectedStep.id;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    aria-label={`选择第 ${steps.findIndex((item) => item.id === step.id) + 1} 张截图，${checked ? '已检查' : '待检查'}`}
+                    aria-pressed={current}
+                    onClick={() => {
+                      setSelectedId(step.id);
+                      setMode('edit');
+                    }}
+                    className={`grid aspect-square place-items-center rounded-[7px] border font-mono text-[9px] transition ${checked ? 'border-[#69dfca]/20 bg-[#69dfca]/10 text-[#7ae5d1]' : current ? 'border-amber-200/30 bg-amber-200/10 text-amber-100' : 'border-white/[.08] bg-white/[.025] text-white/55 hover:text-white/75'}`}
+                  >
+                    {checked ? (
+                      <Check className="size-3" />
+                    ) : (
+                      String(
+                        steps.findIndex((item) => item.id === step.id) + 1,
+                      ).padStart(2, '0')
+                    )}
+                  </button>
+                );
+              })}
+            </div>
             <Button
               className="mt-3 w-full border-amber-200/10 bg-white/[.04] text-amber-100/70 hover:bg-white/[.08] hover:text-amber-100"
               variant="outline"
               size="sm"
-              disabled={privacyConfirmed}
-              onClick={() => { setPrivacyConfirmed(true); showNotice('已确认检查全部示例截图'); }}
+              disabled={
+                !selectedStep.included ||
+                privacyReviewedIds.has(selectedStep.id)
+              }
+              onClick={confirmSelectedPrivacy}
             >
-              {privacyConfirmed ? <><Check data-icon="inline-start" /> 已检查示例截图</> : '我已检查示例截图'}
+              {privacyReviewedIds.has(selectedStep.id) ? (
+                <>
+                  <Check data-icon="inline-start" /> 当前截图已检查
+                </>
+              ) : (
+                `确认第 ${selectedIndex + 1} 张无敏感信息`
+              )}
             </Button>
           </div>
 
           <div className="mt-6">
-            <p className="text-[10px] font-medium uppercase tracking-[.12em] text-white/35">Delivery</p>
+            <p className="text-[10px] font-medium uppercase tracking-[.12em] text-white/52">
+              Delivery
+            </p>
+            <button
+              disabled={Boolean(exporting)}
+              onClick={() => void requestDelivery('rich')}
+              className="mt-2 flex w-full items-center justify-between rounded-[12px] border border-[#8065ff]/20 bg-[#8065ff]/[.08] p-3 text-left transition hover:bg-[#8065ff]/[.14] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <span className="flex items-center gap-2.5">
+                {exporting === 'rich' ? (
+                  <LoaderCircle className="size-3.5 animate-spin text-[#aa9bff]" />
+                ) : (
+                  <Clipboard className="size-3.5 text-[#aa9bff]" />
+                )}
+                <span>
+                  <span className="block text-[11px] font-medium text-white/82">
+                    复制公众号排版
+                  </span>
+                  <span className="mt-0.5 block text-[9px] text-white/55">
+                    直接粘贴到编辑器
+                  </span>
+                </span>
+              </span>
+              <ArrowRight className="size-3.5 text-white/45" />
+            </button>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button onClick={copyMarkdown} className="rounded-[12px] border border-[#8065ff]/20 bg-[#8065ff]/[.07] p-3 text-left transition hover:bg-[#8065ff]/[.12]"><Clipboard className="size-3.5 text-[#9f8dff]" /><p className="mt-2 text-[11px] font-medium text-white/78">复制 MD</p><p className="mt-0.5 text-[9px] text-white/32">适合移动端</p></button>
-              <button onClick={requestDownload} className="rounded-[12px] border border-white/[.06] bg-white/[.025] p-3 text-left transition hover:bg-white/[.05]"><Download className="size-3.5 text-[#5fd8e9]" /><p className="mt-2 text-[11px] font-medium text-white/78">下载文件</p><p className="mt-0.5 text-[9px] text-white/32">Markdown</p></button>
+              <button
+                disabled={Boolean(exporting)}
+                onClick={() => void requestDelivery('markdown')}
+                className="rounded-[12px] border border-white/[.06] bg-white/[.025] p-3 text-left transition hover:bg-white/[.05] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <FileText className="size-3.5 text-[#9f8dff]" />
+                <p className="mt-2 text-[11px] font-medium text-white/78">
+                  复制 Markdown
+                </p>
+                <p className="mt-0.5 text-[9px] text-white/55">含在线图片</p>
+              </button>
+              <button
+                disabled={Boolean(exporting)}
+                onClick={() => void requestDelivery('zip')}
+                className="rounded-[12px] border border-white/[.06] bg-white/[.025] p-3 text-left transition hover:bg-white/[.05] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {exporting === 'zip' ? (
+                  <LoaderCircle className="size-3.5 animate-spin text-[#5fd8e9]" />
+                ) : (
+                  <Archive className="size-3.5 text-[#5fd8e9]" />
+                )}
+                <p className="mt-2 text-[11px] font-medium text-white/78">
+                  独立图文包
+                </p>
+                <p className="mt-0.5 text-[9px] text-white/55">含文稿与图片</p>
+              </button>
             </div>
-            <button onClick={() => { setMode('preview'); showNotice('已切换到公众号成稿预览'); }} className="mt-2 flex w-full items-center justify-between rounded-[12px] border border-white/[.06] bg-white/[.025] p-3 text-left transition hover:bg-white/[.05]"><span><span className="text-[11px] font-medium text-white/78">公众号成稿预览</span><span className="ml-2 text-[9px] text-white/32">查看完整排版</span></span><ArrowRight className="size-3.5 text-white/30" /></button>
+            <button
+              onClick={() => {
+                setMode('preview');
+                showNotice('已切换到公众号成稿预览');
+              }}
+              className="mt-2 flex w-full items-center justify-between rounded-[12px] border border-white/[.06] bg-white/[.025] p-3 text-left transition hover:bg-white/[.05]"
+            >
+              <span>
+                <span className="text-[11px] font-medium text-white/78">
+                  公众号成稿预览
+                </span>
+                <span className="ml-2 text-[9px] text-white/55">
+                  查看完整排版
+                </span>
+              </span>
+              <ArrowRight className="size-3.5 text-white/45" />
+            </button>
           </div>
 
-          <Button className="mt-6 w-full text-white/35 hover:bg-white/[.04] hover:text-white/65" variant="ghost" onClick={onReset}><RotateCcw data-icon="inline-start" /> 重新体验 Demo</Button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  className="mt-6 w-full text-white/45 hover:bg-white/[.04] hover:text-white/75"
+                  variant="ghost"
+                />
+              }
+            >
+              <RotateCcw data-icon="inline-start" /> 重新体验 Demo
+            </AlertDialogTrigger>
+            <AlertDialogContent className="border border-white/[.1] bg-[#12151d] text-white shadow-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>清空本机草稿？</AlertDialogTitle>
+                <AlertDialogDescription className="text-white/58">
+                  这会清除标题、步骤修改、排序和检查进度，并返回体验首页。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="border-white/[.08] bg-white/[.025]">
+                <AlertDialogCancel className="border-white/[.1] bg-transparent text-white/70 hover:bg-white/[.06] hover:text-white">
+                  继续编辑
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-[#7657ff] text-white hover:bg-[#836dff]"
+                  onClick={resetDraft}
+                >
+                  清空并重新体验
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <p className="mt-4 text-[9px] leading-4 text-white/50">
+            非 OpenAI 官方产品概念
+            Demo；所示界面与示例数据仅用于演示，相关品牌及商标归其权利人所有。
+          </p>
         </aside>
       </div>
 
       {notice && (
-        <div role="status" className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#141822]/95 px-4 py-2.5 text-xs font-medium text-white shadow-2xl backdrop-blur-xl">
-          <CheckCircle2 className="size-3.5 text-[#6fe1cc]" /> {notice}
-        </div>
+        <output
+          aria-live="polite"
+          className={`fixed bottom-5 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-[#141822]/95 px-4 py-2.5 text-xs font-medium text-white shadow-2xl backdrop-blur-xl ${notice.tone === 'success' ? 'border-[#6fe1cc]/20' : notice.tone === 'warning' ? 'border-amber-300/25' : 'border-red-400/25'}`}
+        >
+          {notice.tone === 'success' ? (
+            <CheckCircle2 className="size-3.5 shrink-0 text-[#6fe1cc]" />
+          ) : (
+            <CircleAlert
+              className={`size-3.5 shrink-0 ${notice.tone === 'warning' ? 'text-amber-300' : 'text-red-300'}`}
+            />
+          )}
+          <span className="truncate">{notice.message}</span>
+        </output>
       )}
     </main>
   );
@@ -777,10 +1856,20 @@ export default function Home() {
   }, [phase]);
 
   if (phase === 'processing') {
-    return <ProcessingView onCancel={() => setPhase('upload')} onComplete={() => setPhase('editor')} />;
+    return (
+      <ProcessingView
+        onCancel={() => setPhase('upload')}
+        onComplete={() => setPhase('editor')}
+      />
+    );
   }
   if (phase === 'editor') {
     return <EditorView onReset={() => setPhase('upload')} />;
   }
-  return <UploadView onStart={() => setPhase('processing')} />;
+  return (
+    <UploadView
+      onStart={() => setPhase('processing')}
+      onResume={() => setPhase('editor')}
+    />
+  );
 }

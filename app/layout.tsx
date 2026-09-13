@@ -13,18 +13,40 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://lujian-video-guide-demo.caiyiwenann.chatgpt.site'),
-  title: '录见 · AI 录屏教程生成器',
-  description: '上传一段操作录屏，自动生成可编辑、可发布的图文教程。',
+  metadataBase: new URL(
+    'https://lujian-video-guide-demo.caiyiwenann.chatgpt.site',
+  ),
+  title: '录见 Demo · AI 录屏教程生成器',
+  description:
+    '交互式产品概念 Demo：使用内置录屏样例，体验从关键步骤识别、图文校对到公众号素材导出的完整流程。',
+  alternates: {
+    canonical: '/',
+  },
+  icons: {
+    icon: '/favicon.svg',
+  },
   openGraph: {
-    title: '录见 · AI 录屏教程生成器',
-    description: '录一遍，教程自己长出来。',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: '录见：录一遍，教程自己长出来' }],
+    title: '录见 Demo · AI 录屏教程生成器',
+    description:
+      '交互式产品概念 Demo：使用内置样例，体验录屏转图文教程的完整流程。',
+    url: '/',
+    type: 'website',
+    siteName: '录见 Demo',
+    locale: 'zh_CN',
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        alt: '录见：录一遍，教程自己长出来',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: '录见 · AI 录屏教程生成器',
-    description: '录一遍，教程自己长出来。',
+    title: '录见 Demo · AI 录屏教程生成器',
+    description:
+      '交互式产品概念 Demo：使用内置样例，体验录屏转图文教程的完整流程。',
     images: ['/og.png'],
   },
 };

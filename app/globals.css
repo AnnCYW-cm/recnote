@@ -61,7 +61,8 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent)
+    transparent;
 }
 
 :root {
@@ -134,21 +135,31 @@ body {
 }
 
 @keyframes recnote-float {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -7px, 0); }
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -7px, 0);
+  }
 }
 
 @keyframes recnote-shine {
-  0% { transform: translateX(-120%) skewX(-18deg); }
-  60%, 100% { transform: translateX(260%) skewX(-18deg); }
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  60%,
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
 }
 
 .recnote-grid {
   background-image:
-    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 56px 56px;
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 88%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 88%);
 }
 
 .recnote-float {
@@ -160,7 +171,12 @@ body {
   position: absolute;
   inset: -40% auto -40% -20%;
   width: 28%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.24), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.24),
+    transparent
+  );
   animation: recnote-shine 4.8s ease-in-out infinite;
 }
 
