@@ -179,10 +179,18 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [fileError, setFileError] = useState('');
 
   const acceptFile = (file?: File) => {
     if (!file) return;
+    const supported = ['video/mp4', 'video/quicktime'].includes(file.type) || /\.(mov|mp4)$/i.test(file.name);
+    if (!supported) {
+      setFileName('');
+      setFileError('请选择 MOV 或 MP4 录屏文件');
+      return;
+    }
     setFileName(file.name);
+    setFileError('');
   };
 
   const handleDrop = (event: ReactDragEvent<HTMLButtonElement>) => {
@@ -262,6 +270,7 @@ function UploadView({ onStart }: { onStart: (fileName?: string) => void }) {
                 当前是前端 Demo，将使用内置示例结果演示后续流程，不会处理或上传你选择的视频。
               </p>
             )}
+            {fileError && <p role="alert" className="px-2 pt-3 text-center text-xs text-destructive">{fileError}</p>}
           </div>
 
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
@@ -403,12 +412,12 @@ function ProcessingView({ onCancel }: { onCancel: () => void }) {
   );
 }
 
-function buildMarkdown(title: string, summary: string, steps: TutorialStep[]) {
+function buildMarkdown(title: string, summary: string, steps: TutorialStep[], assetOrigin: string) {
   const body = steps
     .filter((step) => step.included)
     .map(
       (step, index) =>
-        `## ${index + 1}. ${step.title}\n\n**视频时间：${step.time}**\n\n${step.body}\n\n![${step.title}](${step.image})`,
+        `## ${index + 1}. ${step.title}\n\n**视频时间：${step.time}**\n\n${step.body}\n\n![${step.title}](${assetOrigin}${step.image})`,
     )
     .join('\n\n');
   return `# ${title}\n\n> ${summary}\n\n${body}\n`;
@@ -421,6 +430,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
   const [title, setTitle] = useState('ChatGPT Work 快速导览：从新对话到插件与 GPTs');
   const [summary, setSummary] = useState('这段操作演示了 ChatGPT Work 网页版中的主要入口，并由 2 分 41 秒的无声录屏自动生成。');
   const [notice, setNotice] = useState('');
+  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
 
   const selectedStep = steps.find((step) => step.id === selectedId) ?? steps[0];
   const includedSteps = useMemo(() => steps.filter((step) => step.included), [steps]);
@@ -446,12 +456,16 @@ function EditorView({ onReset }: { onReset: () => void }) {
   };
 
   const copyMarkdown = async () => {
-    await navigator.clipboard.writeText(buildMarkdown(title, summary, steps));
-    showNotice('Markdown 已复制');
+    try {
+      await navigator.clipboard.writeText(buildMarkdown(title, summary, steps, window.location.origin));
+      showNotice('Markdown 已复制');
+    } catch {
+      showNotice('浏览器未授权剪贴板，请使用下载');
+    }
   };
 
   const downloadMarkdown = () => {
-    const blob = new Blob([buildMarkdown(title, summary, steps)], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([buildMarkdown(title, summary, steps, window.location.origin)], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -462,6 +476,16 @@ function EditorView({ onReset }: { onReset: () => void }) {
   };
 
   const selectedIndex = steps.findIndex((step) => step.id === selectedId);
+  const publishScore = privacyConfirmed ? 100 : 92;
+
+  const polishSelectedStep = () => {
+    if (!selectedStep.body.includes('完成后，请确认')) {
+      updateStep(selectedStep.id, {
+        body: `${selectedStep.body} 完成后，请确认页面标题与预期结果一致。`,
+      });
+    }
+    showNotice('AI 已润色当前步骤');
+  };
 
   return (
     <main className="min-h-screen bg-[#efede7] text-foreground lg:h-screen lg:overflow-hidden">
@@ -471,11 +495,11 @@ function EditorView({ onReset }: { onReset: () => void }) {
           <div className="mx-2 hidden h-6 w-px bg-foreground/10 sm:block" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">ChatGPT Work 功能入口导览</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">已保存 · Demo 示例数据</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">浏览器临时状态 · Demo 示例数据</p>
           </div>
           <div className="hidden rounded-xl bg-muted p-1 sm:flex">
-            <button onClick={() => setMode('edit')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${mode === 'edit' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>编辑</button>
-            <button onClick={() => setMode('preview')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${mode === 'preview' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>成稿预览</button>
+            <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${mode === 'edit' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>编辑</button>
+            <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${mode === 'preview' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>成稿预览</button>
           </div>
           <Button variant="outline" className="hidden sm:inline-flex" onClick={copyMarkdown}><Clipboard data-icon="inline-start" /> 复制</Button>
           <Button onClick={downloadMarkdown}><Download data-icon="inline-start" /> 导出 Markdown</Button>
@@ -496,6 +520,8 @@ function EditorView({ onReset }: { onReset: () => void }) {
               <button
                 key={step.id}
                 type="button"
+                aria-current={selectedId === step.id && mode === 'edit' ? 'step' : undefined}
+                aria-label={`步骤 ${index + 1}：${step.title}，${step.included ? '已纳入成稿' : '已从成稿隐藏'}`}
                 onClick={() => { setSelectedId(step.id); setMode('edit'); }}
                 className={`group flex min-w-[250px] items-center gap-3 rounded-2xl border p-2.5 text-left transition lg:min-w-0 lg:w-full ${selectedId === step.id && mode === 'edit' ? 'border-primary/25 bg-primary/[.08] shadow-sm' : 'border-transparent hover:border-foreground/10 hover:bg-white/70'} ${step.included ? '' : 'opacity-45'}`}
               >
@@ -514,6 +540,10 @@ function EditorView({ onReset }: { onReset: () => void }) {
         </aside>
 
         <section className="min-w-0 overflow-y-auto bg-[#efede7] px-4 py-6 sm:px-8 lg:px-10">
+          <div className="mx-auto mb-4 flex max-w-4xl rounded-xl bg-muted p-1 sm:hidden">
+            <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${mode === 'edit' ? 'bg-white shadow-sm' : 'text-muted-foreground'}`}>编辑步骤</button>
+            <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${mode === 'preview' ? 'bg-white shadow-sm' : 'text-muted-foreground'}`}>成稿预览</button>
+          </div>
           {mode === 'edit' ? (
             <div className="mx-auto max-w-4xl">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -549,7 +579,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
                   <div>
                     <label htmlFor="step-body" className="mb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>操作说明</span>
-                      <button type="button" className="flex items-center gap-1 text-primary hover:underline" onClick={() => showNotice('AI 已重新润色当前步骤')}><WandSparkles className="size-3" /> AI 润色</button>
+                      <button type="button" className="flex items-center gap-1 text-primary hover:underline" onClick={polishSelectedStep}><WandSparkles className="size-3" /> AI 润色</button>
                     </label>
                     <Textarea id="step-body" value={selectedStep.body} onChange={(event) => updateStep(selectedStep.id, { body: event.target.value })} className="min-h-28 resize-none border-0 bg-muted/70 px-4 py-3 leading-7 shadow-none focus-visible:ring-primary/20" />
                   </div>
@@ -568,8 +598,8 @@ function EditorView({ onReset }: { onReset: () => void }) {
           ) : (
             <article className="mx-auto max-w-3xl rounded-[28px] border border-foreground/10 bg-white px-5 py-9 shadow-[0_20px_70px_rgba(23,32,29,.08)] sm:px-12 sm:py-12">
               <Badge className="mb-6 bg-secondary text-secondary-foreground" variant="secondary">AI 生成 · 待人工校对</Badge>
-              <Input value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto border-0 p-0 font-heading text-3xl font-semibold tracking-[-.045em] shadow-none focus-visible:ring-0 sm:text-4xl" />
-              <Textarea value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-5 min-h-20 resize-none border-0 bg-muted/65 px-4 py-3 leading-7 shadow-none focus-visible:ring-primary/20" />
+              <Input aria-label="教程标题" value={title} onChange={(event) => setTitle(event.target.value)} className="h-auto border-0 p-0 font-heading text-3xl font-semibold tracking-[-.045em] shadow-none focus-visible:ring-0 sm:text-4xl" />
+              <Textarea aria-label="教程摘要" value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-5 min-h-20 resize-none border-0 bg-muted/65 px-4 py-3 leading-7 shadow-none focus-visible:ring-primary/20" />
               <div className="mt-10 space-y-12">
                 {includedSteps.map((step, index) => (
                   <section key={step.id}>
@@ -596,16 +626,16 @@ function EditorView({ onReset }: { onReset: () => void }) {
         <aside className="border-t border-foreground/10 bg-[#f8f6f1] p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold">发布检查</p>
-            <span className="font-mono text-xs font-semibold text-emerald-700">92 / 100</span>
+            <span className="font-mono text-xs font-semibold text-emerald-700">{publishScore} / 100</span>
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] rounded-full bg-emerald-600" /></div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${publishScore}%` }} /></div>
 
           <div className="mt-6 space-y-2">
             {[
               ['步骤完整', `${includedSteps.length} 个步骤`, true],
               ['时间可回溯', '10 / 10', true],
               ['画面清晰', '10 / 10', true],
-              ['隐私确认', '2 处待确认', false],
+              ['隐私确认', privacyConfirmed ? '人工确认完成' : '2 处待确认', privacyConfirmed],
             ].map(([label, value, passed]) => (
               <div key={String(label)} className="flex items-center gap-3 rounded-2xl border border-foreground/[.07] bg-white/75 p-3">
                 <span className={`grid size-7 place-items-center rounded-full ${passed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -622,13 +652,21 @@ function EditorView({ onReset }: { onReset: () => void }) {
           <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-center gap-2 text-amber-900"><ShieldCheck className="size-4" /><p className="text-xs font-semibold">隐私提示</p></div>
             <p className="mt-2 text-xs leading-5 text-amber-900/65">系统已裁剪浏览器标签与个人文件区域，但发布前仍需人工逐张确认。</p>
-            <Button className="mt-3 w-full border-amber-200 bg-white text-amber-900 hover:bg-amber-100" variant="outline" size="sm" onClick={() => showNotice('已标记为人工确认')}>标记为已确认</Button>
+            <Button
+              className="mt-3 w-full border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
+              variant="outline"
+              size="sm"
+              disabled={privacyConfirmed}
+              onClick={() => { setPrivacyConfirmed(true); showNotice('隐私检查已完成人工确认'); }}
+            >
+              {privacyConfirmed ? <><Check data-icon="inline-start" /> 已人工确认</> : '标记为已确认'}
+            </Button>
           </div>
 
           <div className="mt-6">
             <p className="text-xs font-semibold text-muted-foreground">导出格式</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button onClick={downloadMarkdown} className="rounded-2xl border border-primary/25 bg-primary/[.07] p-3 text-left transition hover:bg-primary/[.12]"><FileText className="size-4 text-primary" /><p className="mt-2 text-xs font-semibold">Markdown</p><p className="mt-0.5 text-[10px] text-muted-foreground">可立即导出</p></button>
+              <button onClick={downloadMarkdown} className="rounded-2xl border border-primary/25 bg-primary/[.07] p-3 text-left transition hover:bg-primary/[.12]"><FileText className="size-4 text-primary" /><p className="mt-2 text-xs font-semibold">Markdown</p><p className="mt-0.5 text-[10px] text-muted-foreground">图片引用本站</p></button>
               <button onClick={() => showNotice('公众号格式将在产品版开放')} className="rounded-2xl border border-foreground/10 bg-white/75 p-3 text-left transition hover:bg-white"><Sparkles className="size-4" /><p className="mt-2 text-xs font-semibold">公众号</p><p className="mt-0.5 text-[10px] text-muted-foreground">Demo 预览</p></button>
             </div>
           </div>
