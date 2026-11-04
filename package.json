@@ -19,9 +19,10 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check app components lib tests next.config.ts playwright.config.ts vite.config.ts",
     "typecheck": "tsc --noEmit --incremental false --pretty false",
+    "test:cli": "python3 -m unittest discover -s cli/tests -v",
     "test:e2e": "playwright test",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run build",
-    "ci": "npm run check && npm run test:e2e && npm audit --omit=dev --audit-level=high"
+    "ci": "npm run test:cli && npm run check && npm run test:e2e && npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

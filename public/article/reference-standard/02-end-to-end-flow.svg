@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1800" viewBox="0 0 1440 1800" role="img" aria-labelledby="title desc">
+  <title id="title">录见目标端到端产品流程与当前完成度</title>
+  <desc id="desc">本地媒体处理链路和 Web 教程工作台已完成，语义转换链路仍处于规划中；两个已完成端点尚未自动接通。</desc>
+  <defs>
+    <linearGradient id="bg" x1="80" y1="30" x2="1360" y2="1760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBFCFF"/>
+      <stop offset="0.55" stop-color="#F5F3FF"/>
+      <stop offset="1" stop-color="#EFFAFA"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#9B82FF"/>
+      <stop offset="0.55" stop-color="#7657FF"/>
+      <stop offset="1" stop-color="#4FD8EE"/>
+    </linearGradient>
+    <linearGradient id="dark" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#171923"/>
+      <stop offset="1" stop-color="#272A39"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="34" flood-color="#22243B" flood-opacity="0.13"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#2B2E48" flood-opacity="0.09"/>
+    </filter>
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
+      .ink { fill: #171923; }
+      .muted { fill: #656A79; }
+      .tiny { font-size: 24px; font-weight: 700; letter-spacing: 3px; }
+      .title { font-size: 70px; font-weight: 800; letter-spacing: -2px; }
+      .subtitle { font-size: 34px; font-weight: 500; }
+      .section { font-size: 38px; font-weight: 800; }
+      .nodeTitle { font-size: 34px; font-weight: 780; }
+      .nodeSub { font-size: 27px; font-weight: 600; }
+      .badge { font-size: 27px; font-weight: 760; }
+      .small { font-size: 31px; font-weight: 620; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="1800" fill="url(#bg)"/>
+  <circle cx="1310" cy="210" r="250" fill="#7657FF" opacity="0.07"/>
+  <circle cx="100" cy="1580" r="240" fill="#4FD8EE" opacity="0.08"/>
+
+  <!-- Brand header -->
+  <g class="sans">
+    <rect x="88" y="70" width="64" height="64" rx="18" fill="#0B0D13"/>
+    <rect x="94" y="76" width="52" height="52" rx="15" fill="url(#brand)"/>
+    <path d="M113 92.5c0-4.3 4.7-7 8.4-4.7l17.1 10.7c3.4 2.1 3.4 7.1 0 9.2l-17.1 10.7c-3.7 2.3-8.4-.4-8.4-4.7V92.5Z" fill="white"/>
+    <text x="174" y="99" class="ink" font-size="34" font-weight="800">录见 · RECNOTE</text>
+    <text x="174" y="130" fill="#8B90A0" class="tiny">END-TO-END FLOW / V0.1</text>
+    <text x="1298" y="110" text-anchor="end" fill="#969BA9" class="tiny">02 / 03</text>
+
+    <text x="88" y="250" class="title ink">目标流程很清楚，</text>
+    <text x="88" y="332" class="title ink">当前完成度也必须说清楚</text>
+    <text x="88" y="397" class="subtitle muted">绿色与紫色链路已完成；橙色语义桥仍在规划中。</text>
+
+    <g transform="translate(88 438)">
+      <rect width="1264" height="66" rx="33" fill="#171923"/>
+      <circle cx="34" cy="33" r="10" fill="#FFBE3E"/>
+      <text x="62" y="44" class="small" fill="#FFFFFF">V0.1 不是端到端自动生成：两个已完成端点尚未自动接通。</text>
+      <text x="1218" y="44" text-anchor="end" class="badge" fill="#CFC4FF">CURRENT BOUNDARY</text>
+    </g>
+  </g>
+
+  <!-- Main Mac window -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="540" width="1300" height="1090" rx="40" fill="#FFFFFF"/>
+  </g>
+  <rect x="70" y="540" width="1300" height="88" rx="40" fill="#FBFBFD"/>
+  <path d="M70 596h1300" stroke="#E7E8EE" stroke-width="2"/>
+  <circle cx="116" cy="584" r="12" fill="#FF6258"/>
+  <circle cx="154" cy="584" r="12" fill="#FFBE3E"/>
+  <circle cx="192" cy="584" r="12" fill="#32C54A"/>
+  <text x="720" y="591" text-anchor="middle" class="sans small" fill="#777C89">recnote · target pipeline with delivery status</text>
+
+  <!-- Track A: local CLI -->
+  <g class="sans">
+    <rect x="108" y="660" width="1224" height="266" rx="30" fill="#F3FAF6" stroke="#B8D9C7" stroke-width="2"/>
+    <text x="140" y="714" class="section" fill="#2F7252">A · 本地媒体链路</text>
+    <rect x="1054" y="680" width="242" height="54" rx="27" fill="#DDF2E6"/>
+    <text x="1175" y="717" text-anchor="middle" class="badge" fill="#2F7252">已完成 · REAL</text>
+
+    <g filter="url(#softShadow)">
+      <rect x="140" y="758" width="246" height="128" rx="24" fill="#FFFFFF"/>
+      <rect x="434" y="758" width="246" height="128" rx="24" fill="#FFFFFF"/>
+      <rect x="728" y="758" width="246" height="128" rx="24" fill="#FFFFFF"/>
+      <rect x="1022" y="758" width="246" height="128" rx="24" fill="#FFFFFF"/>
+    </g>
+    <text x="164" y="806" class="nodeSub" fill="#398A61">01 · INPUT</text>
+    <text x="164" y="854" class="nodeTitle ink">自有录屏</text>
+    <text x="458" y="806" class="nodeSub" fill="#398A61">02 · PROBE</text>
+    <text x="458" y="854" class="nodeTitle ink">读取元数据</text>
+    <text x="752" y="806" class="nodeSub" fill="#398A61">03 · DETECT</text>
+    <text x="752" y="854" class="nodeTitle ink">发现变化</text>
+    <text x="1046" y="806" class="nodeSub" fill="#398A61">04 · REVIEW</text>
+    <text x="1046" y="854" class="nodeTitle ink">候选评审</text>
+
+    <path d="M392 822h30" stroke="#67A884" stroke-width="4"/>
+    <path d="M414 813l10 9-10 9" fill="none" stroke="#67A884" stroke-width="4"/>
+    <path d="M686 822h30" stroke="#67A884" stroke-width="4"/>
+    <path d="M708 813l10 9-10 9" fill="none" stroke="#67A884" stroke-width="4"/>
+    <path d="M980 822h30" stroke="#67A884" stroke-width="4"/>
+    <path d="M1002 813l10 9-10 9" fill="none" stroke="#67A884" stroke-width="4"/>
+
+    <!-- Planned connector -->
+    <path d="M720 926v38" stroke="#BC7A10" stroke-width="4" stroke-dasharray="9 8"/>
+    <path d="M711 954l9 10 9-10" fill="none" stroke="#BC7A10" stroke-width="4"/>
+    <rect x="754" y="936" width="220" height="44" rx="22" fill="#FFF1CF"/>
+    <text x="864" y="967" text-anchor="middle" class="badge" fill="#9C640B">candidates[] · 未接通</text>
+  </g>
+
+  <!-- Track B: semantic bridge -->
+  <g class="sans">
+    <rect x="108" y="986" width="1224" height="250" rx="30" fill="#FFF9EE" stroke="#D7A94E" stroke-width="3" stroke-dasharray="14 12"/>
+    <text x="140" y="1040" class="section" fill="#9C640B">B · 语义转换链路</text>
+    <rect x="1082" y="1006" width="214" height="54" rx="27" fill="#FCE6B8"/>
+    <text x="1189" y="1043" text-anchor="middle" class="badge" fill="#9C640B">规划中 · NEXT</text>
+
+    <g filter="url(#softShadow)">
+      <rect x="140" y="1082" width="330" height="112" rx="24" fill="#FFFFFF"/>
+      <rect x="555" y="1082" width="330" height="112" rx="24" fill="#FFFFFF"/>
+      <rect x="970" y="1082" width="330" height="112" rx="24" fill="#FFFFFF"/>
+    </g>
+    <text x="165" y="1127" class="nodeSub" fill="#BC7A10">05 · SELECT</text>
+    <text x="165" y="1170" class="nodeTitle ink">选择与合并</text>
+    <text x="580" y="1127" class="nodeSub" fill="#BC7A10">06 · UNDERSTAND</text>
+    <text x="580" y="1170" class="nodeSub ink">语义理解（方案待验证）</text>
+    <text x="995" y="1127" class="nodeSub" fill="#BC7A10">07 · STRUCTURE</text>
+    <text x="995" y="1170" class="nodeTitle ink">TutorialStep[]</text>
+    <path d="M480 1138h60" stroke="#BC7A10" stroke-width="4" stroke-dasharray="9 8"/>
+    <path d="M530 1129l10 9-10 9" fill="none" stroke="#BC7A10" stroke-width="4"/>
+    <path d="M895 1138h60" stroke="#BC7A10" stroke-width="4" stroke-dasharray="9 8"/>
+    <path d="M945 1129l10 9-10 9" fill="none" stroke="#BC7A10" stroke-width="4"/>
+
+    <path d="M720 1236v38" stroke="#BC7A10" stroke-width="4" stroke-dasharray="9 8"/>
+    <path d="M711 1264l9 10 9-10" fill="none" stroke="#BC7A10" stroke-width="4"/>
+    <rect x="754" y="1246" width="270" height="44" rx="22" fill="#FFF1CF"/>
+    <text x="889" y="1277" text-anchor="middle" class="badge" fill="#9C640B">目标接口 · 尚未写入 Web</text>
+  </g>
+
+  <!-- Track C: Web workbench -->
+  <g class="sans">
+    <rect x="108" y="1296" width="1224" height="286" rx="30" fill="#F7F4FF" stroke="#CFC4FF" stroke-width="2"/>
+    <text x="140" y="1350" class="section" fill="#6245D7">C · Web 教程工作台</text>
+    <rect x="1024" y="1316" width="272" height="54" rx="27" fill="#E8E2FF"/>
+    <text x="1160" y="1353" text-anchor="middle" class="badge" fill="#6245D7">已完成 · PRESET DEMO</text>
+
+    <g filter="url(#softShadow)">
+      <rect x="140" y="1394" width="246" height="142" rx="24" fill="#FFFFFF"/>
+      <rect x="434" y="1394" width="246" height="142" rx="24" fill="#FFFFFF"/>
+      <rect x="728" y="1394" width="246" height="142" rx="24" fill="#FFFFFF"/>
+      <rect x="1022" y="1394" width="246" height="142" rx="24" fill="#FFFFFF"/>
+    </g>
+    <text x="164" y="1439" class="nodeSub" fill="#7657FF">08 · PRESET</text>
+    <text x="164" y="1482" class="nodeTitle ink">载入预置初稿</text>
+    <text x="164" y="1517" class="nodeSub muted">同一自有案例</text>
+    <text x="458" y="1439" class="nodeSub" fill="#7657FF">09 · EDIT</text>
+    <text x="458" y="1482" class="nodeTitle ink">编辑与排序</text>
+    <text x="752" y="1439" class="nodeSub" fill="#7657FF">10 · CHECK</text>
+    <text x="752" y="1482" class="nodeTitle ink">复核与隐私</text>
+    <text x="1046" y="1439" class="nodeSub" fill="#7657FF">11 · EXPORT</text>
+    <text x="1046" y="1482" class="nodeTitle ink">MD / HTML / ZIP</text>
+    <path d="M392 1462h30" stroke="#8E78F5" stroke-width="4"/>
+    <path d="M414 1453l10 9-10 9" fill="none" stroke="#8E78F5" stroke-width="4"/>
+    <path d="M686 1462h30" stroke="#8E78F5" stroke-width="4"/>
+    <path d="M708 1453l10 9-10 9" fill="none" stroke="#8E78F5" stroke-width="4"/>
+    <path d="M980 1462h30" stroke="#8E78F5" stroke-width="4"/>
+    <path d="M1002 1453l10 9-10 9" fill="none" stroke="#8E78F5" stroke-width="4"/>
+  </g>
+
+  <!-- Footer -->
+  <g class="sans">
+    <text x="88" y="1710" class="small" fill="#303443">READ THIS FLOW AS STATUS, NOT PROMISE</text>
+    <text x="1352" y="1710" text-anchor="end" class="tiny" fill="#9BA0AE">RECNOTE / 2026</text>
+  </g>
+</svg>

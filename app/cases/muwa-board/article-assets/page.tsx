@@ -488,7 +488,7 @@ export default function ArticleAssetsPage() {
               <div>
                 <WandSparkles className="mx-auto size-8 text-[#6d5ae6]" />
                 <p className="mt-3 text-[14px] font-semibold text-[#555a62]">
-                  AI 语义层
+                  语义转换层
                 </p>
                 <p className="mt-1 text-[11px] text-[#9a6b20]">尚未实现</p>
               </div>
@@ -785,7 +785,7 @@ export default function ArticleAssetsPage() {
               <div>
                 <Pill tone="violet">P0 · 当前主线</Pill>
                 <h2 className="mt-5 text-[32px] font-semibold tracking-[-0.04em] text-[#23262c]">
-                  真实语义链路
+                  候选到步骤桥接
                 </h2>
               </div>
               <span className="grid size-14 place-items-center rounded-[18px] bg-[#6d5ae6] text-white">
@@ -794,7 +794,7 @@ export default function ArticleAssetsPage() {
             </div>
             <div className="mt-8 grid grid-cols-2 gap-4">
               {[
-                '接入视频语义理解与 OCR',
+                '评估规则 / OCR / 多模态方案',
                 '写入真实 TutorialStep[]',
                 '建立自有录屏人工真值',
                 '补齐超时、重试与配额保护',
