@@ -10,6 +10,7 @@ import {
   Images,
   Laptop,
   LockKeyhole,
+  Play,
   ScanSearch,
   ShieldCheck,
   Sparkles,
@@ -55,8 +56,8 @@ function Brand({ index }: { index: string }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-[13px] bg-[#15171b] text-white shadow-[0_10px_30px_rgba(20,24,30,.12)]">
-          <Sparkles className="size-5" />
+        <span className="grid size-11 place-items-center rounded-[13px] bg-gradient-to-br from-[#8b6cff] via-[#7657ff] to-[#4fdcff] text-white shadow-[0_12px_32px_rgba(118,87,255,.24)]">
+          <Play className="size-4 fill-current" />
         </span>
         <div>
           <p className="text-[15px] font-semibold tracking-[-0.02em] text-[#17191d]">
@@ -88,10 +89,10 @@ function TitleBlock({
       <p className="text-[13px] font-semibold tracking-[0.16em] text-[#6857e8] uppercase">
         {eyebrow}
       </p>
-      <h1 className="mt-4 max-w-[900px] text-[54px] leading-[1.08] font-semibold tracking-[-0.055em] text-[#17191d]">
+      <h1 className="mt-4 max-w-[936px] text-balance text-[50px] leading-[1.1] font-semibold tracking-[-0.052em] text-[#17191d]">
         {title}
       </h1>
-      <p className="mt-5 max-w-[900px] text-[23px] leading-[1.7] tracking-[-0.015em] text-[#6f737c]">
+      <p className="mt-5 max-w-[936px] text-[25px] leading-[1.62] tracking-[-0.015em] text-[#6f737c]">
         {copy}
       </p>
     </div>
@@ -195,8 +196,8 @@ export default function ArticleAssetsPage() {
         <Brand index="01" />
         <TitleBlock
           eyebrow="WHAT EXISTS TODAY"
-          title="V0.1，先把链路的两头做出来"
-          copy="候选帧 CLI 负责从录屏里找画面，Web 工作台负责把预设步骤编辑、检查并导出。"
+          title="两端都能跑，但还没有自动接通"
+          copy="CLI 真实提取 7 张候选画面；Web 使用 6 步自有预置初稿演示编辑、复核与导出。"
         />
         <div className="mt-10 grid flex-1 grid-rows-[1fr_auto_1fr] gap-4">
           <MacWindow title="候选帧 CLI · 真实本地运行">
@@ -312,7 +313,7 @@ export default function ArticleAssetsPage() {
         <Brand index="03" />
         <TitleBlock
           eyebrow="TWO REAL FLOWS"
-          title="同一个产品原型，目前跑着两条独立流程"
+          title="两条流程已经跑通，中间还缺语义层"
           copy="上面是真实读取视频的 CLI，下面是使用预设教程数据的 Web 工作台。"
         />
         <div className="mt-16 rounded-[32px] border border-white/75 bg-white/60 p-8 shadow-[0_25px_80px_rgba(33,36,43,.09)]">
@@ -495,7 +496,7 @@ export default function ArticleAssetsPage() {
             <span className="h-20 border-l border-dashed border-[#999da5]" />
           </div>
 
-          <MacWindow title="TutorialStep[]">
+          <MacWindow title="TutorialStep[] · Web 预置数据">
             <div className="h-[620px] bg-white p-7">
               <div className="overflow-hidden rounded-[16px] border border-black/[0.07] bg-[#f6f7f8]">
                 <Image
@@ -582,7 +583,7 @@ export default function ArticleAssetsPage() {
             {[
               {
                 title: '本地 CLI POC',
-                copy: 'video_guide.py · tests/ · VALIDATION.md',
+                copy: 'video_guide.py · tests · 验证记录',
                 badge: '暂未公开',
                 icon: Code2,
                 tone: 'amber' as const,
@@ -608,7 +609,7 @@ export default function ArticleAssetsPage() {
                     <h3 className="text-[20px] font-semibold text-[#24272d]">
                       {item.title}
                     </h3>
-                    <p className="mt-2 truncate font-mono text-[11px] text-[#8d9199]">
+                    <p className="mt-2 font-mono text-[12px] leading-5 text-[#8d9199]">
                       {item.copy}
                     </p>
                   </div>
@@ -624,8 +625,8 @@ export default function ArticleAssetsPage() {
         <Brand index="07" />
         <TitleBlock
           eyebrow="WEB DEMO"
-          title="输入是真的，处理页目前是模拟的"
-          copy="页面只校验 MOV / MP4 的文件信息；之后展示预置的自有案例，不读取也不上传视频字节。"
+          title="文件选择已实现，视频分析尚未接入"
+          copy="页面只校验 MOV / MP4 的文件名与类型；之后展示预置自有案例，不读取也不上传视频字节。"
         />
         <div className="mt-14 grid flex-1 grid-rows-3 gap-5">
           {[
@@ -634,14 +635,14 @@ export default function ArticleAssetsPage() {
               title: '选择录屏',
               copy: '仅显示文件名与类型',
               badge: 'LOCAL ONLY',
-              image: '/cases/muwa-board/01-board.jpg',
+              image: '/article/web-home.jpg',
             },
             {
               step: '02',
               title: '进入模拟处理页',
               copy: '用预置阶段说明未来任务状态',
               badge: 'SIMULATED',
-              image: '/cases/muwa-board/05-progress.jpg',
+              image: '/article/web-processing.jpg',
             },
             {
               step: '03',
@@ -726,7 +727,7 @@ export default function ArticleAssetsPage() {
               },
               {
                 n: '03',
-                title: '三个交付入口同时解锁',
+                title: '三种交付方式通过同一道门禁',
                 copy: 'Markdown、公众号格式、独立图文包',
                 icon: CheckCircle2,
                 tone: 'green' as const,
@@ -775,7 +776,7 @@ export default function ArticleAssetsPage() {
         <Brand index="09" />
         <TitleBlock
           eyebrow="ROADMAP"
-          title="下一步只做一件事：把真实语义链路打通"
+          title="V0.2：把两端真正接起来"
           copy="先证明真实录屏能经过有限修改变成可交付教程，再扩展生产与协作能力。"
         />
         <div className="mt-16 flex flex-1 flex-col gap-8">

@@ -178,8 +178,12 @@ const INITIAL_STEPS: TutorialStep[] = [
 
 const PROCESSING_STAGES = [
   { at: 14, label: '载入自有案例', detail: '00:18 · 1440 × 900 · 无音频' },
-  { at: 34, label: '定位界面变化', detail: '离线提取 7 个候选画面' },
-  { at: 58, label: '筛选候选画面', detail: '丢弃 3 个相邻重复候选' },
+  {
+    at: 34,
+    label: '回放候选信号',
+    detail: '4 个场景信号 · 6 个周期信号',
+  },
+  { at: 58, label: '筛选候选画面', detail: '合并与去重后保留 7 张' },
   {
     at: 78,
     label: '模拟语义整理界面',
@@ -287,16 +291,15 @@ function UploadView({
             <span className="h-px w-9 bg-gradient-to-r from-[#8367ff] to-[#67ddff]" />
             Screen-to-Guide · Concept
           </div>
-          <h1 className="font-heading text-[clamp(2.6rem,5.2vw,4.8rem)] leading-[.96] font-semibold tracking-[-.07em]">
-            把一段录屏
-            <br />
-            <span className="bg-gradient-to-r from-[#b9a8ff] via-[#826cff] to-[#63ddff] bg-clip-text text-transparent">
-              变成一篇教程。
+          <h1 className="font-heading text-[clamp(2.6rem,4.5vw,4.4rem)] leading-[.98] font-semibold tracking-[-.065em]">
+            <span className="block whitespace-nowrap">从录屏候选画面</span>
+            <span className="block whitespace-nowrap bg-gradient-to-r from-[#b9a8ff] via-[#826cff] to-[#63ddff] bg-clip-text text-transparent">
+              到一篇可编辑教程。
             </span>
           </h1>
           <p className="mt-7 max-w-lg text-[17px] leading-8 text-[#9aa4b7]">
-            录见希望自动找到关键操作，匹配截图与说明。当前 V0.1
-            先用自有案例验证编辑、复核和导出体验。
+            录见正在验证一条“录屏到图文教程”的产品路径。当前 V0.1
+            已完成候选帧提取 POC，以及独立的编辑、复核与导出演示。
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[.08em] text-white/55">
             <span>CLI：00:18 录屏 · 7 个候选画面</span>
@@ -459,7 +462,7 @@ function UploadView({
                 alt="木瓦任务板中新建任务后的详情画面"
                 width={1600}
                 height={1000}
-                priority
+                preload
                 unoptimized
                 className="aspect-[16/10] w-full object-cover object-top"
               />
@@ -483,7 +486,7 @@ function UploadView({
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-[18px] bg-white/[.08] text-white">
               {[
                 ['00:18', '原始录屏'],
-                ['7 FRAME', 'CLI 候选'],
+                ['7 FRAMES', 'CLI 候选'],
                 ['6 STEP', 'WEB 预置稿'],
               ].map(([value, label]) => (
                 <div
@@ -548,14 +551,14 @@ function ProcessingView({
             <span className="size-1.5 rounded-full bg-[#6de1cd] shadow-[0_0_12px_#6de1cd]" />
             Demo Pipeline · Owned Case
           </div>
-          <h1 className="mt-6 font-heading text-[clamp(2.55rem,4.2vw,4rem)] font-semibold leading-[1.02] tracking-[-.06em]">
-            正在演示从录屏
+          <h1 className="mt-6 font-heading text-[clamp(2.45rem,3.8vw,3.6rem)] font-semibold leading-[1.02] tracking-[-.055em]">
+            正在回放两段
             <br />
-            到教程的处理状态
+            尚未连接的真实能力
           </h1>
           <p className="mt-5 max-w-md text-[15px] leading-7 text-white/52">
-            下面先回放候选帧筛选，再载入独立的 Web
-            预置稿；两端的语义转换尚未接入。
+            先展示 CLI 的候选帧结果，再载入独立的 Web
+            预置初稿。负责理解操作并生成步骤的语义层尚未接入。
           </p>
 
           <div className="mt-8 rounded-[20px] border border-white/[.09] bg-[#10131b]/82 p-5 shadow-[0_28px_90px_rgba(0,0,0,.34)] backdrop-blur-xl">
@@ -644,22 +647,17 @@ function ProcessingView({
             <div className="relative overflow-hidden rounded-[15px] border border-white/[.08] bg-white">
               <Image
                 src="/cases/muwa-board/05-progress.jpg"
-                alt="正在检测界面变化的自有案例画面"
+                alt="候选帧 CLI 输出的自有案例画面"
                 width={1600}
                 height={1000}
-                priority
+                preload
                 unoptimized
                 className="aspect-[16/10] w-full object-cover object-top"
               />
-              <div className="absolute right-[7%] top-[22%] h-[12%] w-[18%] rounded-[7px] border border-[#66dceb] bg-[#66dceb]/[.07] shadow-[0_0_0_4px_rgba(102,220,235,.08)]">
-                <span className="absolute -top-5 left-0 rounded-[5px] bg-[#66dceb] px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#081013]">
-                  UI CHANGE
-                </span>
-              </div>
               <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-[12px] border border-white/[.1] bg-[#0b0e14]/90 px-3 py-2.5 text-white shadow-2xl backdrop-blur-xl">
                 <span className="flex items-center gap-2 text-xs font-medium">
                   <span className="size-1.5 rounded-full bg-[#67e0ca] shadow-[0_0_8px_#67e0ca]" />{' '}
-                  自有案例 · 检测界面变化
+                  自有案例 · 候选画面 05
                 </span>
                 <span className="font-mono text-[10px] text-white/55">
                   00:09.250
@@ -668,16 +666,16 @@ function ProcessingView({
             </div>
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-[14px] bg-white/[.07]">
               {[
-                ['CHANGE', 'STATUS'],
-                ['REPEAT', 'NO'],
-                ['KEEP', 'YES'],
+                ['SOURCE', 'CLI'],
+                ['MODEL', 'NONE'],
+                ['REVIEW', 'PENDING'],
               ].map(([label, value]) => (
                 <div key={label} className="bg-[#10131a] px-3 py-3">
                   <p className="text-[9px] uppercase tracking-[.12em] text-white/48">
                     {label}
                   </p>
                   <p
-                    className={`mt-1 font-mono text-xs ${label === 'KEEP' ? 'text-[#6fe2cd]' : 'text-white/68'}`}
+                    className={`mt-1 font-mono text-xs ${label === 'REVIEW' ? 'text-[#f5c46d]' : 'text-white/68'}`}
                   >
                     {value}
                   </p>
@@ -1697,7 +1695,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
                     复制公众号排版
                   </span>
                   <span className="mt-0.5 block text-[9px] text-white/55">
-                    直接粘贴到编辑器
+                    优先富文本 · 不支持时回退 Markdown
                   </span>
                 </span>
               </span>

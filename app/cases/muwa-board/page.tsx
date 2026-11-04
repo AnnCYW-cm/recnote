@@ -12,6 +12,17 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+  openGraph: {
+    title: '木瓦任务板 · 录见自有案例',
+    description: '用于录见产品验证的自有任务管理案例页面。',
+    images: [],
+  },
+  twitter: {
+    card: 'summary',
+    title: '木瓦任务板 · 录见自有案例',
+    description: '用于录见产品验证的自有任务管理案例页面。',
+    images: [],
+  },
 };
 
 export default function MuwaBoardCasePage() {

@@ -10,6 +10,8 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -36,3 +38,16 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# unpublished legacy article drafts and obsolete assets
+/docs/article-v4-assets/
+/docs/article-v5-assets/
+/docs/公众号文章-v3-*
+/docs/公众号文章-v4-*
+/docs/公众号文章-v5-*
+/docs/公众号文章-v6-*
+/docs/公众号文章-v7-*
+/docs/公众号文章-v8-*
+/docs/公众号文章-录见Demo.md
+/docs/公众号文章框架-*
+/docs/新案例替换清单.md

@@ -38,12 +38,12 @@ export default function OgPreviewPage() {
           Screen-to-Guide · Concept
         </p>
         <h1 className="mt-4 text-[51px] leading-[1.03] font-semibold tracking-[-0.065em]">
-          把一段录屏
+          从录屏的候选画面
           <br />
-          变成可编辑教程
+          到可编辑教程
         </h1>
         <p className="mt-6 max-w-[430px] text-[17px] leading-8 text-white/58">
-          木瓦任务板自有案例 · 可交互概念 Demo
+          两端独立运行 · 语义转换尚未接入
         </p>
         <div className="mt-9 flex items-center gap-3 text-[12px] text-white/56">
           <span>CLI · 7 个候选帧</span>
@@ -71,7 +71,7 @@ export default function OgPreviewPage() {
               alt="木瓦任务板自有案例"
               width={1440}
               height={900}
-              priority
+              preload
               unoptimized
               className="aspect-[16/10] w-full object-cover object-top"
             />
