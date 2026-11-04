@@ -226,6 +226,7 @@ function UploadView({
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState('');
   const [hasDraft, setHasDraft] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -236,6 +237,8 @@ function UploadView({
         setHasDraft(draft?.version === DRAFT_VERSION);
       } catch {
         clearStoredDraft();
+      } finally {
+        setHydrated(true);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -398,6 +401,7 @@ function UploadView({
               <Button
                 className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
                 size="lg"
+                disabled={!hydrated}
                 onClick={() => onStart(fileName)}
               >
                 <Sparkles data-icon="inline-start" />
