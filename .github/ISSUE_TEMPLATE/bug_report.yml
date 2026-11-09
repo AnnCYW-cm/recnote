@@ -1,0 +1,51 @@
+name: Bug 报告
+description: 报告可以稳定复现的问题
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请勿上传包含账号、客户数据、个人隐私或密钥的真实录屏。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？你原本预期什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 选择一段……
+        3. 点击……
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器与版本
+      placeholder: Chrome 142 / Safari 26
+    validations:
+      required: true
+  - type: input
+    id: video
+    attributes:
+      label: 视频信息
+      description: 只填写格式、编码、时长、分辨率和大小，不要上传敏感原文件。
+      placeholder: H.264 MP4，18 秒，1440×900，210 KB
+  - type: textarea
+    id: logs
+    attributes:
+      label: 非敏感日志或截图
+      description: 提交前请移除文件路径、账号、令牌和个人信息。
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已确认提交内容不含真实客户数据、个人隐私、密钥或未授权素材。
+          required: true

@@ -11,6 +11,7 @@ export type TutorialExportInput = {
   title: string;
   summary: string;
   steps: TutorialExportStep[];
+  footer?: string;
 };
 
 type ImagePathResolver = (step: TutorialExportStep, index: number) => string;
@@ -77,6 +78,27 @@ function stepAssetName(index: number, source: string) {
   return `images/step-${String(index + 1).padStart(2, '0')}.${extension === 'jpeg' ? 'jpg' : extension}`;
 }
 
+async function imageSourceBytes(source: string, title: string) {
+  if (source.startsWith('data:')) {
+    const separator = source.indexOf(',');
+    if (separator < 0) throw new Error(`截图数据无效：${title}`);
+    const metadata = source.slice(5, separator);
+    const payload = source.slice(separator + 1);
+    if (metadata.split(';').includes('base64')) {
+      const decoded = window.atob(payload);
+      const bytes = new Uint8Array(decoded.length);
+      for (let index = 0; index < decoded.length; index += 1)
+        bytes[index] = decoded.charCodeAt(index);
+      return bytes;
+    }
+    return new TextEncoder().encode(decodeURIComponent(payload));
+  }
+
+  const response = await fetch(source, { credentials: 'same-origin' });
+  if (!response.ok) throw new Error(`截图读取失败：${title}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 export function safeBasename(input: string) {
   const normalized = singleLine(input).normalize('NFKC');
   let value = Array.from(normalized)
@@ -109,13 +131,19 @@ export function buildMarkdown(
       return `## ${index + 1}. ${title}\n\n**视频时间：${escapeMarkdownInline(step.time)}**\n\n${escapeMarkdownBlock(step.body)}\n\n![${alt}](${imagePath(step, index)})`;
     })
     .join('\n\n');
-  return `# ${escapeMarkdownInline(input.title)}\n\n${summary}\n\n${body}\n\n---\n\n*本文由录见 Demo 的预置案例生成；木瓦任务板及示例数据均为自有演示内容，不包含真实账号、客户或业务信息。*\n`;
+  const footer =
+    input.footer ??
+    '本文由录见生成；发布前请再次核对操作说明、截图内容和隐私信息。';
+  return `# ${escapeMarkdownInline(input.title)}\n\n${summary}\n\n${body}\n\n---\n\n*${escapeMarkdownInline(footer)}*\n`;
 }
 
 export function buildWechatHtml(
   input: TutorialExportInput,
   imagePath: ImagePathResolver,
 ) {
+  const footer =
+    input.footer ??
+    '本文由录见生成；发布前请再次核对操作说明、截图内容和隐私信息。';
   const steps = includedSteps(input)
     .map(
       (step, index) => `
@@ -138,7 +166,7 @@ export function buildWechatHtml(
     <h1 style="margin:0;color:#101219;font-size:34px;line-height:1.25;letter-spacing:-.03em;">${escapeHtml(singleLine(input.title))}</h1>
     <div style="margin:24px 0 42px;padding:16px 18px;border-radius:12px;background:#f3f4f7;color:#434754;font-size:15px;line-height:1.8;">${escapeHtml(input.summary).replace(/\r?\n/g, '<br>')}</div>
     ${steps}
-    <p style="margin:40px 0 0;padding-top:18px;border-top:1px solid #eceef2;color:#8a8f9d;font-size:11px;line-height:1.7;">本文由录见 Demo 的预置案例生成；木瓦任务板及示例数据均为自有演示内容，不包含真实账号、客户或业务信息。</p>
+    <p style="margin:40px 0 0;padding-top:18px;border-top:1px solid #eceef2;color:#8a8f9d;font-size:11px;line-height:1.7;">${escapeHtml(footer)}</p>
   </article>`;
 }
 
@@ -153,10 +181,9 @@ export async function createTutorialZip(input: TutorialExportInput) {
 
   await Promise.all(
     steps.map(async (step, index) => {
-      const response = await fetch(step.image, { credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`截图读取失败：${step.title}`);
-      files[`${root}/${assetNames[index]}`] = new Uint8Array(
-        await response.arrayBuffer(),
+      files[`${root}/${assetNames[index]}`] = await imageSourceBytes(
+        step.image,
+        step.title,
       );
     }),
   );

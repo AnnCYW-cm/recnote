@@ -1,0 +1,31 @@
+name: 功能建议
+description: 说明用户问题、使用场景和预期价值
+title: '[Feature] '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 谁在什么场景下遇到了什么困难？
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: 期望流程
+      description: 从用户开始操作到获得结果，理想步骤是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 当前替代办法
+      description: 现在如何完成？为什么还不够？
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: 产品原则
+      options:
+        - label: 该建议不会默认上传用户视频或绕过隐私确认。
+          required: true
