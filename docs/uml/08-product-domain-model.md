@@ -162,12 +162,13 @@ classDiagram
 | 缺失对象 | 对应产品能力 | 当前状态 |
 | --- | --- | --- |
 | `User`、`Organization`、`Workspace` | 账号、组织、权限和多人协作 | 未定义 |
-| `Project`、`TutorialVersion` | 真实视频草稿、历史版本、恢复与回滚 | 路线图 |
-| `FrameSelection`、`FrameReplacement` | 候选池、手工增删帧和替换截图 | 路线图 |
-| `ModelConsent`、`SemanticSuggestion` | 用户授权后的可插拔语义适配器 | 路线图 |
-| `Annotation`、`Redaction` | 裁剪、标注和敏感信息打码 | 路线图 |
+| `LocalProject`、`ProjectSnapshot` | 真实视频本地草稿与最新可恢复快照 | V1 To-Be 待验证目标；尚未实现 |
+| `TutorialVersion` | 完整版本树、分支、回滚 | 不进入最小 V1；尚未定义 |
+| `FrameSelection` | 候选池、手工增删帧和步骤截图替换映射 | V1 To-Be 待验证目标；尚未实现 |
+| `ModelConsent`、`SemanticSuggestion` | 用户授权后的可插拔语义建议 | V1 默认关闭的实验支路；尚未实现 |
+| `ImageEdit` | 裁剪、标注和人工遮挡 / 模糊的派生操作 | V1 To-Be 待验证目标；尚未实现 |
 | `ReviewAssignment`、`Approval` | 审核者分工、意见和审批流 | 未定义 |
 | `PublicationTarget`、`PublicationRecord` | 直连公众号或知识库并记录发布结果 | 未定义 |
 | `Plan`、`Subscription`、`Entitlement` | 套餐、计费和商业权益 | 未定义 |
 
-这些对象只有在对应需求经过验证并进入开发范围后，才能进入目标领域模型；不能仅因为“完整产品可能需要”就画成现有实体。
+这些对象只有在对应需求经过验证并进入开发范围后，才能进入当前实现模型；不能仅因为“完整产品可能需要”就画成现有实体。V1 候选对象及其边界单独见 [V1 To-Be 产品蓝图](11-v1-target-product-blueprint.md)。

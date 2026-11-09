@@ -50,7 +50,8 @@ flowchart LR
   Analyze["浏览器本地像素分析"]
   Review["人工文案与隐私复核"]
   Export["用户主动复制或下载"]
-  Outside["页面外部：公众号编辑器或本地文件"]
+  LocalExit["系统剪贴板或用户本地文件"]
+  Outside["外部平台：公众号编辑器、知识库等"]
 
   Untrusted --> Validate
   Validate -->|"通过"| Analyze
@@ -58,7 +59,8 @@ flowchart LR
   Analyze --> Review
   Review -->|"五项门禁通过"| Export
   Review -->|"未通过"| Review
-  Export --> Outside
+  Export --> LocalExit
+  LocalExit -->|"用户主动粘贴、上传或导入"| Outside
 ```
 
 边界规则：
@@ -67,7 +69,8 @@ flowchart LR
 - Web 分析代码没有视频上传请求，也没有第三方模型调用。
 - `tutorial-export` 的 `fetch` 只用于读取同源自有示例图片并装入 ZIP；真实视频截图直接来自 data URL。
 - Blob URL 在分析结束、失败或取消后撤销。
-- 内容只有在用户主动复制或下载时才离开页面内存。
+- 只有用户主动复制或下载，教程内容才会被带到系统剪贴板或用户本地文件；录见无法观测用户之后是否粘贴、上传或发布到外部平台。
+- 自有示例是上述规则的明确例外：编辑后的字段子集会自动写入同源 `localStorage` 以支持恢复，但不会写入服务器；真实视频、候选截图和真实视频草稿不会进入该存储。
 - 截图隐私复核是人工门禁，不是自动检测结果。
 
 ## CLI 信任边界

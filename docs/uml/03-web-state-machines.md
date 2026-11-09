@@ -45,6 +45,7 @@ stateDiagram-v2
   state "待输入" as New
   state "分析中" as Analyzing
   state "候选结果就绪" as CandidateReady
+  state "恢复示例草稿" as Restoring
   state "可编辑初稿" as Editing
   state "复核阻塞" as ReviewBlocked
   state "可交付" as Ready
@@ -56,6 +57,10 @@ stateDiagram-v2
   [*] --> New
   New --> Analyzing : 有效真实视频
   New --> CandidateReady : 自有示例完成
+  New --> Restoring : 用户选择继续兼容示例草稿
+  Restoring --> Editing : 内容仍不完整，或缺失字段由受控示例回退
+  Restoring --> ReviewBlocked : 内容完整但复核未完成
+  Restoring --> Ready : 五项门禁均已通过
   Analyzing --> CandidateReady : 候选分析成功
   Analyzing --> Failed : 解码、超时或 Canvas 失败
   Analyzing --> Cancelled : 用户取消或离开
@@ -65,11 +70,11 @@ stateDiagram-v2
   Editing --> ReviewBlocked : 内容完整但复核未完成
   ReviewBlocked --> Editing : 内容再次不完整
   ReviewBlocked --> Ready : 五项门禁全部通过
-  Ready --> ReviewBlocked : 文案或隐私复核失效
+  Ready --> ReviewBlocked : 文案修改，或恢复未完成复核的步骤
   Ready --> Editing : 内容、时间戳或截图失效
   Ready --> Exported : 复制或下载成功
   Exported --> Ready : 继续导出其他格式
-  Exported --> ReviewBlocked : 再次修改且内容仍完整
+  Exported --> ReviewBlocked : 再次修改或恢复步骤，且内容仍完整
   Exported --> Editing : 再次修改并产生内容缺口
   CandidateReady --> Expired : 真实视频页面刷新或关闭
   Editing --> Expired : 真实视频页面刷新或关闭
@@ -81,6 +86,7 @@ stateDiagram-v2
 产品语义：
 
 - `CandidateReady` 只表示分析或示例处理结果已准备好；用户还没有进入编辑器。
+- `Restoring` 只适用于首页已识别为版本兼容的自有示例草稿；恢复后根据内容与五项门禁实时进入 `Editing`、`ReviewBlocked` 或 `Ready`。无效 JSON 会在入口被清除，版本不兼容的草稿不会出现“继续编辑”入口。
 - `Editing` 是激活节点；用户点击进入教程工作台后，才真正获得可编辑初稿。
 - `Ready` 是实时门禁结果，不是人工设置的状态。
 - `Exported` 只说明交付物生成成功，不等于内容已在外部平台 `Published`。

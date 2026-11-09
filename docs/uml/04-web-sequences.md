@@ -117,17 +117,23 @@ sequenceDiagram
 
     alt 复制 Markdown
       Editor->>Clipboard: writeText
-      Clipboard-->>User: Markdown 已复制
+      Clipboard-->>Editor: 写入成功
+      Editor-->>User: Markdown 已复制
     else 复制公众号排版
       Editor->>Export: buildWechatHtml
       Export-->>Editor: HTML 文本
       Editor->>Export: writeRichClipboard HTML, Markdown
       Export->>Clipboard: 写入 text/html 与 text/plain
       alt 富文本写入成功
-        Clipboard-->>User: 公众号格式已复制
+        Clipboard-->>Export: 写入成功
+        Export-->>Editor: rich
+        Editor-->>User: 公众号格式已复制
       else 浏览器拒绝富文本
+        Clipboard-->>Export: 写入失败
         Export->>Clipboard: 回退 writeText Markdown
-        Clipboard-->>User: 已复制降级内容
+        Clipboard-->>Export: 写入成功
+        Export-->>Editor: fallback
+        Editor-->>User: 已复制降级内容
       end
     else 下载独立图文包
       Editor->>Export: createTutorialZip
@@ -170,7 +176,7 @@ sequenceDiagram
     Upload->>Home: onResume
     Home->>Editor: source.kind = demo
     Editor->>Store: 再次读取并校验字段
-    Store-->>Editor: 文字、顺序、模式与复核 ID
+    Store-->>Editor: 文字、步骤顺序与纳入状态、当前选择、编辑模式与复核状态
     Editor->>Editor: 与受控示例素材合并
   else 无草稿或版本不兼容
     Upload-->>User: 显示体验示例流程
