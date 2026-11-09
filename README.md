@@ -72,9 +72,24 @@ recnote/
 ├── lib/video-analysis.ts  # 浏览器本地视频采样与候选帧筛选
 ├── lib/tutorial-export.ts # Markdown、富文本和 ZIP 导出
 ├── cli/                   # Python + ffmpeg 离线候选帧 CLI
+├── docs/uml/              # 当前实现的用例、数据、状态与时序文档
 ├── tests/e2e/             # Playwright 端到端测试
 └── public/cases/          # 自有示例录屏和截图
 ```
+
+## 设计文档
+
+完整工程文档见 [UML 与架构文档](docs/uml/README.md)，包括：
+
+- Web 与 CLI 的真实系统边界；
+- 正式用例说明；
+- Web 数据模型和草稿持久化模型；
+- 页面、视频分析和复核状态机；
+- 本地视频分析、编辑复核、导出和草稿恢复时序；
+- Python + ffmpeg CLI 的数据结构、处理时序和输出契约；
+- Sites、浏览器、本地文件系统之间的部署与隐私边界。
+
+所有图都对应当前代码。尚未实现的模型语义层、服务端视频处理、数据库和自动隐私识别不会被画成现有能力。
 
 ## 离线 CLI
 
