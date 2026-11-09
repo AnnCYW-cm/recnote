@@ -65,6 +65,13 @@ import {
   safeBasename,
   writeRichClipboard,
 } from '@/lib/tutorial-export';
+import {
+  analyzeVideo,
+  formatVideoTimestamp,
+  validateVideoFile,
+  type VideoAnalysisProgress,
+  type VideoAnalysisResult,
+} from '@/lib/video-analysis';
 
 type Phase = 'upload' | 'processing' | 'editor';
 type EditorMode = 'edit' | 'preview';
@@ -99,10 +106,54 @@ type StoredDraft = {
   privacyReviewedIds: number[];
 };
 
+type EditorSource =
+  | { kind: 'demo' }
+  | {
+      kind: 'local';
+      fileName: string;
+      duration: number;
+      width: number;
+      height: number;
+      sampleCount: number;
+      steps: TutorialStep[];
+    };
+
 const PUBLIC_SITE_ORIGIN =
   'https://lujian-video-guide-demo.caiyiwenann.chatgpt.site';
 const DRAFT_STORAGE_KEY = 'recnote-demo-draft-v5-muwa-board';
 const DRAFT_VERSION = 2;
+const LOCAL_STEP_PLACEHOLDER =
+  '请根据截图补充这一时刻的操作、目的和结果。当前文字是待人工完善的占位说明。';
+
+function fileSizeLabel(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+function videoBaseName(fileName: string) {
+  return safeBasename(fileName.replace(/\.(mov|mp4|webm)$/i, '')).slice(0, 36);
+}
+
+function localEditorSource(result: VideoAnalysisResult): EditorSource {
+  return {
+    kind: 'local',
+    fileName: result.fileName,
+    duration: result.duration,
+    width: result.width,
+    height: result.height,
+    sampleCount: result.sampleCount,
+    steps: result.frames.map((frame, index) => ({
+      id: frame.id,
+      time: frame.time,
+      title: `关键画面 ${String(index + 1).padStart(2, '0')}`,
+      body: LOCAL_STEP_PLACEHOLDER,
+      image: frame.image,
+      imageHeight: frame.imageHeight,
+      included: true,
+      confidence: Math.round(60 + Math.min(1, frame.score * 3) * 39),
+    })),
+  };
+}
 
 function clearStoredDraft() {
   try {
@@ -218,11 +269,11 @@ function UploadView({
   onStart,
   onResume,
 }: {
-  onStart: (fileName?: string) => void;
+  onStart: (file?: File) => void;
   onResume: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState('');
   const [hasDraft, setHasDraft] = useState(false);
@@ -246,15 +297,13 @@ function UploadView({
 
   const acceptFile = (file?: File) => {
     if (!file) return;
-    const supported =
-      ['video/mp4', 'video/quicktime'].includes(file.type) ||
-      /\.(mov|mp4)$/i.test(file.name);
-    if (!supported) {
-      setFileName('');
-      setFileError('不支持这个格式；可以重新选择，或直接体验自有案例');
+    const validationError = validateVideoFile(file);
+    if (validationError) {
+      setSelectedFile(null);
+      setFileError(validationError);
       return;
     }
-    setFileName(file.name);
+    setSelectedFile(file);
     setFileError('');
   };
 
@@ -276,13 +325,13 @@ function UploadView({
           <div className="flex items-center gap-3 text-[11px] text-white/55">
             <span className="hidden items-center gap-2 sm:flex">
               <span className="size-1.5 rounded-full bg-[#6ce5ff] shadow-[0_0_12px_#6ce5ff]" />{' '}
-              INTERACTIVE PROTOTYPE
+              LOCAL-FIRST MVP
             </span>
             <Badge
               className="h-7 border-white/10 bg-white/[.055] px-3 text-white/70"
               variant="outline"
             >
-              自有案例
+              开源版本
             </Badge>
           </div>
         </div>
@@ -292,7 +341,7 @@ function UploadView({
         <div className="relative z-10 max-w-[600px]">
           <div className="mb-7 flex items-center gap-3 text-[11px] font-medium uppercase tracking-[.22em] text-[#92a0b8]">
             <span className="h-px w-9 bg-gradient-to-r from-[#8367ff] to-[#67ddff]" />
-            Screen-to-Guide · Concept
+            Screen-to-Guide · Local
           </div>
           <h1 className="font-heading text-[clamp(2.6rem,4.5vw,4.4rem)] leading-[.98] font-semibold tracking-[-.065em]">
             <span className="block whitespace-nowrap">从录屏候选画面</span>
@@ -301,13 +350,12 @@ function UploadView({
             </span>
           </h1>
           <p className="mt-7 max-w-lg text-[17px] leading-8 text-[#9aa4b7]">
-            录见正在验证一条“录屏到图文教程”的产品路径。当前 V0.1
-            已完成候选帧提取 POC，以及独立的编辑、复核与导出演示。
+            放入一段软件录屏，录见会在浏览器本地找出关键画面，生成一份可编辑、可复核、可导出的图文教程初稿。
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[.08em] text-white/55">
-            <span>CLI：00:18 录屏 · 7 个候选画面</span>
+            <span>LOCAL：视频不离开设备</span>
             <span className="text-[#826cff]">/</span>
-            <span className="text-white/75">WEB：6 步预置初稿</span>
+            <span className="text-white/75">OPEN SOURCE · 可自托管</span>
           </div>
 
           <div className="mt-9 rounded-[24px] border border-white/[.1] bg-white/[.045] p-2.5 shadow-[0_28px_90px_rgba(0,0,0,.42)] backdrop-blur-xl">
@@ -317,7 +365,7 @@ function UploadView({
               type="file"
               tabIndex={-1}
               aria-hidden="true"
-              accept="video/mp4,video/quicktime,.mov,.mp4"
+              accept="video/mp4,video/quicktime,video/webm,.mov,.mp4,.webm"
               onChange={(event) => acceptFile(event.target.files?.[0])}
             />
             <button
@@ -334,21 +382,43 @@ function UploadView({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-white">
-                  {fileName || '选择或拖入一段录屏'}
+                  {selectedFile?.name || '选择或拖入一段录屏'}
                 </span>
                 <span className="mt-1 block text-xs text-white/58">
-                  {fileName
-                    ? '仅显示文件名，不读取、不上传、不分析内容'
-                    : 'MOV / MP4 · 演示模式使用自有案例'}
+                  {selectedFile
+                    ? `${fileSizeLabel(selectedFile.size)} · 将只在当前浏览器本地处理`
+                    : 'MP4 / MOV / WebM · 最长 5 分钟 · 不上传服务器'}
                 </span>
               </span>
-              {fileName ? (
+              {selectedFile ? (
                 <CheckCircle2 className="mr-2 size-5 text-[#5de0c0]" />
               ) : (
                 <ArrowRight className="mr-2 size-4 text-white/45 transition group-hover:translate-x-1 group-hover:text-white" />
               )}
             </button>
-            {hasDraft ? (
+            {selectedFile ? (
+              <>
+                <Button
+                  className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
+                  size="lg"
+                  disabled={!hydrated}
+                  onClick={() => onStart(selectedFile)}
+                >
+                  <Scissors data-icon="inline-start" /> 在本地分析这段录屏
+                </Button>
+                {hasDraft && (
+                  <Button
+                    className="mt-2.5 h-11 w-full rounded-[15px] border-white/[.1] bg-white/[.035] text-white/68 hover:bg-white/[.07] hover:text-white"
+                    size="lg"
+                    variant="outline"
+                    onClick={onResume}
+                  >
+                    <BookOpenCheck data-icon="inline-start" />
+                    继续编辑上次的示例草稿
+                  </Button>
+                )}
+              </>
+            ) : hasDraft ? (
               <>
                 <Button
                   className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
@@ -388,7 +458,7 @@ function UploadView({
                         onClick={() => {
                           clearStoredDraft();
                           setHasDraft(false);
-                          onStart(fileName);
+                          onStart();
                         }}
                       >
                         清空并开始
@@ -402,15 +472,15 @@ function UploadView({
                 className="recnote-shine relative mt-2.5 h-12 w-full overflow-hidden rounded-[17px] border-0 bg-gradient-to-r from-[#7457ff] via-[#896cff] to-[#4bcfe9] text-[14px] font-semibold text-white shadow-[0_16px_40px_rgba(117,87,255,.3)] hover:brightness-110"
                 size="lg"
                 disabled={!hydrated}
-                onClick={() => onStart(fileName)}
+                onClick={() => onStart()}
               >
                 <Sparkles data-icon="inline-start" />
-                {fileName ? '用案例结果继续体验' : '体验示例流程'}
+                体验示例流程
               </Button>
             )}
-            {fileName && (
+            {selectedFile && (
               <p className="px-2 pt-3 text-center text-xs leading-5 text-white/58">
-                你选择的视频不会被读取或上传，后续展示来自预置的木瓦任务板案例。
+                视频会在浏览器中解码、比较并截取候选画面，全程不上传服务器。
               </p>
             )}
             {fileError && (
@@ -426,15 +496,14 @@ function UploadView({
           <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3 text-xs text-white/60">
             <span className="flex items-center gap-2">
               <ShieldCheck className="size-3.5 text-[#69dec9]" />{' '}
-              演示不读取、不上传视频
+              视频本地处理，不离开设备
             </span>
             <span className="flex items-center gap-2">
               <Archive className="size-3.5 text-[#8e7cff]" /> 导出独立图文包
             </span>
           </div>
           <p className="mt-5 max-w-lg text-[11px] leading-5 text-white/52">
-            录见目前为可交互概念
-            Demo；页面展示的是预置的自有案例结果，不会读取或上传你选择的视频。木瓦任务板及其中数据均为演示内容，不包含真实客户或业务数据。
+            当前开源版本会真实读取并分析你主动选择的视频，但只在浏览器当前会话中处理；不会上传，也不会调用第三方模型。没有视频时仍可体验木瓦任务板自有案例。
           </p>
         </div>
 
@@ -693,25 +762,276 @@ function ProcessingView({
   );
 }
 
-function EditorView({ onReset }: { onReset: () => void }) {
+const LOCAL_STAGE_COPY: Array<{
+  id: VideoAnalysisProgress['stage'];
+  label: string;
+}> = [
+  { id: 'loading', label: '读取视频信息' },
+  { id: 'sampling', label: '采样并比较画面变化' },
+  { id: 'selecting', label: '筛选关键候选画面' },
+  { id: 'capturing', label: '生成高清教程截图' },
+  { id: 'complete', label: '创建可编辑初稿' },
+];
+
+function LocalProcessingView({
+  file,
+  onCancel,
+  onComplete,
+}: {
+  file: File;
+  onCancel: () => void;
+  onComplete: (result: VideoAnalysisResult) => void;
+}) {
+  const [progress, setProgress] = useState<VideoAnalysisProgress>({
+    stage: 'loading',
+    percent: 1,
+    detail: '准备在浏览器本地读取视频',
+    completed: 0,
+    total: 0,
+  });
+  const [result, setResult] = useState<VideoAnalysisResult | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void analyzeVideo(file, {
+      signal: controller.signal,
+      onProgress: setProgress,
+    })
+      .then(setResult)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError')
+          return;
+        setError(
+          reason instanceof Error ? reason.message : '视频处理失败，请重新选择',
+        );
+      });
+    return () => controller.abort();
+  }, [file]);
+
+  const activeStageIndex = LOCAL_STAGE_COPY.findIndex(
+    (stage) => stage.id === progress.stage,
+  );
+
+  return (
+    <main className="relative isolate min-h-screen overflow-hidden bg-[#07080c] text-white">
+      <div className="recnote-grid pointer-events-none absolute inset-0 -z-20 opacity-45" />
+      <div className="pointer-events-none absolute -left-48 top-1/4 -z-10 size-[34rem] rounded-full bg-[#7657ff]/16 blur-[120px]" />
+      <div className="pointer-events-none absolute -right-48 bottom-[-12rem] -z-10 size-[32rem] rounded-full bg-[#3cd8ee]/10 blur-[120px]" />
+
+      <header className="border-b border-white/[.07] bg-[#07080c]/70 backdrop-blur-2xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Brand />
+          <Badge
+            className="border-[#69dec9]/20 bg-[#69dec9]/10 text-[#7be7d2]"
+            variant="outline"
+          >
+            <ShieldCheck className="mr-1 size-3" /> 本地处理
+          </Badge>
+        </div>
+      </header>
+
+      <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-7xl items-center gap-12 px-5 py-12 sm:px-8 lg:grid-cols-[.82fr_1.18fr] lg:py-16">
+        <div className="max-w-lg">
+          <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[.2em] text-[#788398]">
+            <span className="size-1.5 rounded-full bg-[#6de1cd] shadow-[0_0_12px_#6de1cd]" />
+            Local video pipeline
+          </div>
+          <h1 className="mt-6 font-heading text-[clamp(2.45rem,3.8vw,3.65rem)] leading-[1.02] font-semibold tracking-[-.055em]">
+            正在把这段录屏
+            <br />
+            拆成关键画面
+          </h1>
+          <p className="mt-5 max-w-md text-[15px] leading-7 text-white/52">
+            视频字节只在当前浏览器里读取。录见会采样画面、比较变化，再把候选截图交给你编辑和复核。
+          </p>
+
+          <div className="mt-7 rounded-[18px] border border-white/[.08] bg-white/[.035] p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-white/[.06] text-[#8f7cff]">
+                <Video className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-white/88">
+                  {file.name}
+                </p>
+                <p className="mt-1 text-xs text-white/45">
+                  {fileSizeLabel(file.size)} · 不上传服务器
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3 text-[11px] text-white/48">
+            <span>首版上限：5 分钟 / 500 MB</span>
+            <span>·</span>
+            <span>推荐 H.264 MP4</span>
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/[.1] bg-[#0f1219]/88 p-5 shadow-[0_35px_100px_rgba(0,0,0,.42)] backdrop-blur-xl sm:p-7">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[.16em] text-white/48">
+                Analysis progress
+              </p>
+              <p className="mt-2 text-sm font-medium text-white/86">
+                {error ? '处理没有完成' : progress.detail}
+              </p>
+            </div>
+            <span className="font-mono text-2xl font-medium text-white">
+              {error ? '--' : `${progress.percent}%`}
+            </span>
+          </div>
+          <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/[.07]">
+            <div
+              className={`h-full rounded-full transition-[width] duration-300 ${error ? 'bg-red-400' : 'bg-gradient-to-r from-[#7657ff] to-[#58d7ea]'}`}
+              style={{ width: `${error ? 100 : progress.percent}%` }}
+            />
+          </div>
+
+          {error ? (
+            <div className="mt-6 rounded-[16px] border border-red-400/15 bg-red-400/[.06] p-4">
+              <div className="flex gap-3">
+                <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-300" />
+                <div>
+                  <p className="text-sm font-medium text-red-100">
+                    无法处理这段视频
+                  </p>
+                  <p className="mt-1.5 text-xs leading-6 text-red-100/60">
+                    {error}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-1.5">
+              {LOCAL_STAGE_COPY.map((stage, index) => {
+                const completed = result ? true : index < activeStageIndex;
+                const active = !result && index === activeStageIndex;
+                return (
+                  <div
+                    key={stage.id}
+                    className={`flex items-center gap-3 rounded-[12px] border px-3 py-3 ${active ? 'border-[#8065ff]/25 bg-[#8065ff]/[.08]' : 'border-transparent'}`}
+                  >
+                    <span
+                      className={`grid size-7 shrink-0 place-items-center rounded-[9px] border ${completed ? 'border-[#66dfca]/20 bg-[#66dfca]/10 text-[#72e3ce]' : active ? 'border-[#8a73ff]/35 bg-[#8065ff]/15 text-[#a797ff]' : 'border-white/[.07] text-white/18'}`}
+                    >
+                      {completed ? (
+                        <Check className="size-3.5" />
+                      ) : active ? (
+                        <LoaderCircle className="size-3.5 animate-spin" />
+                      ) : (
+                        <span className="size-1 rounded-full bg-current" />
+                      )}
+                    </span>
+                    <span
+                      className={`text-[13px] font-medium ${completed || active ? 'text-white/86' : 'text-white/25'}`}
+                    >
+                      {stage.label}
+                    </span>
+                    <span className="ml-auto font-mono text-[10px] text-white/32">
+                      0{index + 1}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-6">
+              <div className="grid grid-cols-3 gap-2">
+                {result.frames.slice(0, 6).map((frame) => (
+                  <div
+                    key={frame.id}
+                    className="relative overflow-hidden rounded-[10px] border border-white/[.08] bg-black"
+                  >
+                    <Image
+                      src={frame.image}
+                      alt={`候选画面 ${frame.id}`}
+                      width={frame.imageWidth}
+                      height={frame.imageHeight}
+                      unoptimized
+                      className="aspect-video w-full object-cover"
+                    />
+                    <span className="absolute right-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[8px] text-white/75">
+                      {frame.time}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-[12px] border border-[#69dec9]/15 bg-[#69dec9]/[.06] px-4 py-3 text-xs leading-5 text-[#91ead9]">
+                已从 {result.sampleCount} 个采样画面中保留{' '}
+                {result.frames.length}{' '}
+                张候选截图。步骤文字仍需你根据实际操作补充。
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex gap-3">
+            <Button
+              className="flex-1 border-white/[.09] bg-white/[.035] text-white/62 hover:bg-white/[.075] hover:text-white"
+              variant="outline"
+              onClick={onCancel}
+            >
+              {error ? '返回重选' : result ? '换一段视频' : '停止处理'}
+            </Button>
+            <Button
+              className="flex-[1.35] border-0 bg-gradient-to-r from-[#7457ff] to-[#54cfe8] text-white shadow-[0_12px_30px_rgba(116,87,255,.22)] hover:brightness-110"
+              disabled={!result}
+              onClick={() => result && onComplete(result)}
+            >
+              进入教程工作台 <ArrowRight data-icon="inline-end" />
+            </Button>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function EditorView({
+  onReset,
+  source,
+}: {
+  onReset: () => void;
+  source: EditorSource;
+}) {
+  const isDemo = source.kind === 'demo';
+  const sourceDuration =
+    source.kind === 'local' ? formatVideoTimestamp(source.duration) : '00:18';
   const stepsScrollerRef = useRef<HTMLDivElement>(null);
   const contentScrollerRef = useRef<HTMLElement>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const [steps, setSteps] = useState(() =>
-    INITIAL_STEPS.map((step) => ({ ...step })),
+    (source.kind === 'local' ? source.steps : INITIAL_STEPS).map((step) => ({
+      ...step,
+    })),
   );
-  const [selectedId, setSelectedId] = useState(4);
+  const [selectedId, setSelectedId] = useState(() =>
+    source.kind === 'local' ? (source.steps[0]?.id ?? 1) : 4,
+  );
   const [mode, setMode] = useState<EditorMode>('edit');
-  const [title, setTitle] = useState('用木瓦任务板完成一轮公众号发布检查');
-  const [summary, setSummary] = useState(
-    '这段 18 秒录屏演示了如何在木瓦任务板中新建发布检查任务、推进状态、完成清单并归档。当前 Web 案例预置了 6 个步骤，用于验证编辑、复核与导出体验。',
+  const [title, setTitle] = useState(() =>
+    source.kind === 'local'
+      ? `从「${videoBaseName(source.fileName)}」整理的图文教程`
+      : '用木瓦任务板完成一轮公众号发布检查',
+  );
+  const [summary, setSummary] = useState(() =>
+    source.kind === 'local'
+      ? `录见在浏览器本地分析了这段 ${formatVideoTimestamp(source.duration)} 的录屏，从 ${source.sampleCount} 个采样画面中筛出 ${source.steps.length} 张候选截图。请根据真实操作补全并核对每一步。`
+      : '这段 18 秒录屏演示了如何在木瓦任务板中新建发布检查任务、推进状态、完成清单并归档。当前 Web 案例预置了 6 个步骤，用于验证编辑、复核与导出体验。',
   );
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [exporting, setExporting] = useState<
     'markdown' | 'rich' | 'zip' | null
   >(null);
   const [editedStepIds, setEditedStepIds] = useState<Set<number>>(
-    () => new Set(),
+    () =>
+      new Set(
+        source.kind === 'local' ? source.steps.map((step) => step.id) : [],
+      ),
   );
   const [reviewedStepIds, setReviewedStepIds] = useState<Set<number>>(
     () => new Set(),
@@ -719,9 +1039,11 @@ function EditorView({ onReset }: { onReset: () => void }) {
   const [privacyReviewedIds, setPrivacyReviewedIds] = useState<Set<number>>(
     () => new Set(),
   );
-  const [articleCopyEdited, setArticleCopyEdited] = useState(false);
+  const [articleCopyEdited, setArticleCopyEdited] = useState(
+    source.kind === 'local',
+  );
   const [articleCopyReviewed, setArticleCopyReviewed] = useState(false);
-  const [draftReady, setDraftReady] = useState(false);
+  const [draftReady, setDraftReady] = useState(!isDemo);
 
   const showNotice = (
     message: string,
@@ -733,6 +1055,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
   };
 
   useEffect(() => {
+    if (!isDemo) return;
     const timer = window.setTimeout(() => {
       try {
         const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -809,10 +1132,10 @@ function EditorView({ onReset }: { onReset: () => void }) {
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [isDemo]);
 
   useEffect(() => {
-    if (!draftReady) return;
+    if (!isDemo || !draftReady) return;
     const timer = window.setTimeout(() => {
       const draft: StoredDraft = {
         version: DRAFT_VERSION,
@@ -851,6 +1174,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
     steps,
     summary,
     title,
+    isDemo,
   ]);
 
   useEffect(
@@ -926,11 +1250,19 @@ function EditorView({ onReset }: { onReset: () => void }) {
   const selectedStepEdited = editedStepIds.has(selectedStep.id);
   const selectedStepReviewed = reviewedStepIds.has(selectedStep.id);
   const selectedStepNeedsReview = selectedStepEdited && !selectedStepReviewed;
+  const localStepCopyReady =
+    isDemo ||
+    includedSteps.every(
+      (step) =>
+        step.body.trim() !== LOCAL_STEP_PLACEHOLDER &&
+        !step.body.trim().startsWith('请根据截图补充这一时刻'),
+    );
   const contentReady = Boolean(
     title.trim() &&
     summary.trim() &&
     includedSteps.length > 0 &&
-    includedSteps.every((step) => step.title.trim() && step.body.trim()),
+    includedSteps.every((step) => step.title.trim() && step.body.trim()) &&
+    localStepCopyReady,
   );
   const timestampsReady =
     includedSteps.length > 0 && includedSteps.every((step) => step.time);
@@ -951,7 +1283,11 @@ function EditorView({ onReset }: { onReset: () => void }) {
   const checkItems: Array<[string, string, boolean]> = [
     [
       '内容完整',
-      contentReady ? `${includedSteps.length} 个有效步骤` : '请补全标题与步骤',
+      contentReady
+        ? `${includedSteps.length} 个有效步骤`
+        : localStepCopyReady
+          ? '请补全标题与步骤'
+          : '请替换每一步占位说明',
       contentReady,
     ],
     [
@@ -960,7 +1296,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
       timestampsReady,
     ],
     [
-      '案例截图齐全',
+      '候选截图齐全',
       `${includedSteps.filter((step) => step.image).length} / ${includedSteps.length}`,
       screenshotsReady,
     ],
@@ -980,13 +1316,26 @@ function EditorView({ onReset }: { onReset: () => void }) {
   ).length;
   const publishReady = completedCheckCount === checkItems.length;
 
-  const exportInput = { title, summary, steps };
-  const publicImagePath = (step: { image: string }) =>
-    `${PUBLIC_SITE_ORIGIN}${step.image}`;
+  const exportInput = {
+    title,
+    summary,
+    steps,
+    footer: isDemo
+      ? '本文由录见的自有示例生成；木瓦任务板及示例数据均为演示内容，不包含真实账号、客户或业务信息。'
+      : '本文由录见在浏览器本地整理生成；发布前请再次核对操作说明、截图内容和隐私信息。',
+  };
+  const assetOrigin =
+    typeof window === 'undefined' ? PUBLIC_SITE_ORIGIN : window.location.origin;
+  const markdownImagePath = (step: { image: string }, index: number) =>
+    isDemo
+      ? `${assetOrigin}${step.image}`
+      : `images/step-${String(index + 1).padStart(2, '0')}.jpg`;
+  const richImagePath = (step: { image: string }) =>
+    isDemo ? `${assetOrigin}${step.image}` : step.image;
 
   const validateDelivery = () => {
     if (!contentReady) {
-      showNotice('请先补全标题、摘要和至少一个有效步骤', 'warning');
+      showNotice('请先补全标题、摘要和每一步真实操作说明', 'warning');
       return false;
     }
     if (!timestampsReady || !screenshotsReady) {
@@ -1011,13 +1360,17 @@ function EditorView({ onReset }: { onReset: () => void }) {
     if (!validateDelivery() || exporting) return;
     setExporting(kind);
     try {
-      const markdown = buildMarkdown(exportInput, publicImagePath);
+      const markdown = buildMarkdown(exportInput, markdownImagePath);
       if (kind === 'markdown') {
         await navigator.clipboard.writeText(markdown);
-        showNotice('在线版 Markdown 已复制');
+        showNotice(
+          isDemo
+            ? '在线版 Markdown 已复制'
+            : 'Markdown 已复制；完整图片请同时下载图文包',
+        );
       } else if (kind === 'rich') {
         const result = await writeRichClipboard(
-          buildWechatHtml(exportInput, publicImagePath),
+          buildWechatHtml(exportInput, richImagePath),
           markdown,
         );
         showNotice(
@@ -1076,7 +1429,7 @@ function EditorView({ onReset }: { onReset: () => void }) {
   };
 
   const resetDraft = () => {
-    clearStoredDraft();
+    if (isDemo) clearStoredDraft();
     onReset();
   };
 
@@ -1092,9 +1445,11 @@ function EditorView({ onReset }: { onReset: () => void }) {
               {title}
             </p>
             <p className="mt-0.5 text-[10px] uppercase tracking-[.1em] text-white/52">
-              {draftReady
-                ? '案例草稿 · 已在本机自动保存'
-                : '案例草稿 · 正在恢复'}
+              {isDemo
+                ? draftReady
+                  ? '示例草稿 · 已在本机自动保存'
+                  : '示例草稿 · 正在恢复'
+                : '本地视频草稿 · 仅保留在当前会话'}
             </p>
           </div>
           <div className="hidden rounded-[10px] border border-white/[.075] bg-white/[.035] p-1 sm:flex">
@@ -1170,14 +1525,15 @@ function EditorView({ onReset }: { onReset: () => void }) {
             <div>
               <p className="text-[13px] font-medium text-white/88">教程步骤</p>
               <p className="mt-1 text-[11px] text-white/50">
-                预置案例 · {includedSteps.length} 个纳入步骤
+                {isDemo ? '预置示例' : '本地候选'} · {includedSteps.length}{' '}
+                个纳入步骤
               </p>
             </div>
             <Badge
               className="h-6 border-[#8873ff]/20 bg-[#8065ff]/10 px-2.5 text-[9px] font-medium tracking-[.08em] text-[#a797ff]"
               variant="outline"
             >
-              案例草稿
+              {isDemo ? '示例草稿' : '本地草稿'}
             </Badge>
           </div>
           <div
@@ -1220,7 +1576,8 @@ function EditorView({ onReset }: { onReset: () => void }) {
                     {step.title}
                   </p>
                   <p className="mt-1 flex items-center gap-1.5 font-mono text-[9px] text-white/52">
-                    <Video className="size-2.5" /> {step.time} · 示例字段
+                    <Video className="size-2.5" /> {step.time} ·{' '}
+                    {isDemo ? '示例字段' : '候选画面'}
                   </p>
                 </div>
                 {step.included ? (
@@ -1265,8 +1622,8 @@ function EditorView({ onReset }: { onReset: () => void }) {
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 data-icon="inline-start" /> 自有案例 ·
-                        字段预留
+                        <CheckCircle2 data-icon="inline-start" />{' '}
+                        {isDemo ? '自有示例 · 字段预留' : '本地初稿 · 待补充'}
                       </>
                     )}
                   </Badge>
@@ -1407,7 +1764,9 @@ function EditorView({ onReset }: { onReset: () => void }) {
                           ? '文案已被修改，请重新确认说明与当前画面一致。'
                           : selectedStepReviewed
                             ? '这处修改已人工核对，后续再次编辑会自动恢复待核对状态。'
-                            : '自有案例已预先核对；如果修改文案，需要重新确认。'}
+                            : isDemo
+                              ? '自有示例已预先核对；如果修改文案，需要重新确认。'
+                              : '这段说明由占位文字生成，请按真实操作补充后再确认。'}
                       </p>
                       {selectedStepEdited && (
                         <Button
@@ -1461,10 +1820,10 @@ function EditorView({ onReset }: { onReset: () => void }) {
                   className="h-6 border-[#7657ff]/10 bg-[#7657ff]/[.07] px-2.5 text-[9px] font-medium tracking-[.08em] text-[#6548e8]"
                   variant="outline"
                 >
-                  案例草稿 · 可编辑
+                  {isDemo ? '示例草稿' : '本地视频草稿'} · 可编辑
                 </Badge>
                 <span className="font-mono text-[9px] uppercase tracking-[.12em] text-[#14161d]/55">
-                  {includedSteps.length} steps · 00:18
+                  {includedSteps.length} steps · {sourceDuration}
                 </span>
               </div>
               <Textarea
@@ -1715,7 +2074,9 @@ function EditorView({ onReset }: { onReset: () => void }) {
                 <p className="mt-2 text-[11px] font-medium text-white/78">
                   复制 Markdown
                 </p>
-                <p className="mt-0.5 text-[9px] text-white/55">含在线图片</p>
+                <p className="mt-0.5 text-[9px] text-white/55">
+                  {isDemo ? '含在线图片' : '使用图文包相对路径'}
+                </p>
               </button>
               <button
                 disabled={Boolean(exporting)}
@@ -1761,13 +2122,16 @@ function EditorView({ onReset }: { onReset: () => void }) {
                 />
               }
             >
-              <RotateCcw data-icon="inline-start" /> 重新体验 Demo
+              <RotateCcw data-icon="inline-start" />{' '}
+              {isDemo ? '重新体验示例' : '处理另一段视频'}
             </AlertDialogTrigger>
             <AlertDialogContent className="border border-white/[.1] bg-[#12151d] text-white shadow-2xl">
               <AlertDialogHeader>
-                <AlertDialogTitle>清空本机草稿？</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {isDemo ? '清空本机草稿？' : '离开当前视频草稿？'}
+                </AlertDialogTitle>
                 <AlertDialogDescription className="text-white/58">
-                  这会清除标题、步骤修改、排序和检查进度，并返回体验首页。
+                  这会清除标题、步骤修改、排序和检查进度，并返回首页。
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="border-white/[.08] bg-white/[.025]">
@@ -1778,15 +2142,16 @@ function EditorView({ onReset }: { onReset: () => void }) {
                   className="bg-[#7657ff] text-white hover:bg-[#836dff]"
                   onClick={resetDraft}
                 >
-                  清空并重新体验
+                  {isDemo ? '清空并重新体验' : '离开并选择新视频'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
 
           <p className="mt-4 text-[9px] leading-4 text-white/50">
-            录见目前为可交互概念
-            Demo；木瓦任务板及其中数据均为自有演示内容，不包含真实客户或业务数据。
+            {isDemo
+              ? '木瓦任务板及其中数据均为自有演示内容，不包含真实客户或业务数据。'
+              : '视频和候选截图只在当前浏览器会话中处理；刷新或关闭页面后不会保留。'}
           </p>
         </aside>
       </div>
@@ -1812,26 +2177,64 @@ function EditorView({ onReset }: { onReset: () => void }) {
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>('upload');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [editorSource, setEditorSource] = useState<EditorSource>({
+    kind: 'demo',
+  });
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [phase]);
 
   if (phase === 'processing') {
+    if (selectedFile) {
+      return (
+        <LocalProcessingView
+          file={selectedFile}
+          onCancel={() => {
+            setSelectedFile(null);
+            setPhase('upload');
+          }}
+          onComplete={(result) => {
+            setEditorSource(localEditorSource(result));
+            setPhase('editor');
+          }}
+        />
+      );
+    }
     return (
       <ProcessingView
         onCancel={() => setPhase('upload')}
-        onComplete={() => setPhase('editor')}
+        onComplete={() => {
+          setEditorSource({ kind: 'demo' });
+          setPhase('editor');
+        }}
       />
     );
   }
   if (phase === 'editor') {
-    return <EditorView onReset={() => setPhase('upload')} />;
+    return (
+      <EditorView
+        source={editorSource}
+        onReset={() => {
+          setSelectedFile(null);
+          setEditorSource({ kind: 'demo' });
+          setPhase('upload');
+        }}
+      />
+    );
   }
   return (
     <UploadView
-      onStart={() => setPhase('processing')}
-      onResume={() => setPhase('editor')}
+      onStart={(file) => {
+        setSelectedFile(file ?? null);
+        setPhase('processing');
+      }}
+      onResume={() => {
+        setSelectedFile(null);
+        setEditorSource({ kind: 'demo' });
+        setPhase('editor');
+      }}
     />
   );
 }

@@ -1,9 +1,9 @@
 {
-  "name": "recnote-demo",
-  "version": "0.1.0",
-  "description": "录见 V0.1：候选画面提取与教程工作台概念原型",
+  "name": "recnote",
+  "version": "0.2.0",
+  "description": "录见：在浏览器本地把软件录屏整理成可编辑图文教程",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/AnnCYW-cm/recnote.git"
@@ -16,13 +16,13 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
-    "format": "oxfmt",
+    "format": "oxfmt app components lib tests next.config.ts playwright.config.ts vite.config.ts package.json",
     "format:check": "oxfmt --check app components lib tests next.config.ts playwright.config.ts vite.config.ts",
     "typecheck": "tsc --noEmit --incremental false --pretty false",
     "test:cli": "python3 -m unittest discover -s cli/tests -v",
     "test:e2e": "playwright test",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run build",
-    "ci": "npm run test:cli && npm run check && npm run test:e2e && npm audit --omit=dev --audit-level=high"
+    "ci": "npm run test:cli && npm run check && npm run test:e2e && npm audit --audit-level=high"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -38,8 +38,8 @@
     "vinext": "1.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.8",
-    "@cloudflare/workers-types": "5.20260911.1",
+    "@cloudflare/vite-plugin": "^1.67.0",
+    "@cloudflare/workers-types": "^5.20261109.1",
     "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.2.1",
@@ -48,13 +48,13 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.38",
-    "oxfmt": "0.61.0",
+    "oxfmt": "^0.77.0",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vite": "8.3.5",
-    "wrangler": "4.131.1"
+    "wrangler": "^4.158.0"
   },
   "overrides": {
     "fast-uri": "3.1.9",

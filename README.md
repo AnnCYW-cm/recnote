@@ -1,60 +1,94 @@
-# 录见 Recnote
+# 录见 RecNote
 
-录见是一款“录屏到图文教程”的产品原型。这个仓库同时保存当前可复现的候选帧 CLI 和 Web 教程工作台。
+[![CI](https://github.com/AnnCYW-cm/recnote/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnCYW-cm/recnote/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-5b5bd6.svg)](LICENSE)
 
-当前 V0.1 包含两部分独立能力：
+录见是一个开源的“录屏转图文教程”Web 工具。选择一段软件录屏后，它会直接在浏览器本地采样画面、筛选候选截图，并生成一份可编辑、可复核、可导出的教程初稿。
 
-- `cli/`：在本地分析 MOV/MP4 录屏并输出候选画面、JSON 清单和离线评审页；
-- Web：使用 6 步自有预置初稿，验证编辑、复核、隐私确认与图文导出体验。
-
-负责把候选画面理解并转换成教程步骤的语义层尚未接入，因此当前版本不是端到端自动生成工具。
-
-## 仓库结构
-
-```text
-recnote-demo/
-├── cli/                 # Python 候选帧提取 CLI、测试和验证记录
-├── app/                 # Web 页面与自有案例
-├── lib/                 # Markdown、富文本和 ZIP 导出逻辑
-├── public/              # 自有录屏、截图与文章素材
-└── tests/e2e/           # Web 端到端测试
-```
+**视频不会上传服务器，也不会在未获同意时发送给第三方模型。**
 
 ## 在线体验
 
-- [录见 V0.1](https://lujian-video-guide-demo.caiyiwenann.chatgpt.site/)
-- [木瓦任务板自有案例](https://lujian-video-guide-demo.caiyiwenann.chatgpt.site/cases/muwa-board)
+- [录见 Web 工具](https://lujian-video-guide-demo.caiyiwenann.chatgpt.site/)
+- [木瓦任务板自有示例](https://lujian-video-guide-demo.caiyiwenann.chatgpt.site/cases/muwa-board)
 
-## 运行 Web 工作台
+## 当前可以做什么
+
+- 读取 MP4、MOV、WebM 录屏，并在浏览器本地解码；
+- 对视频进行低分辨率采样，结合全局与局部画面变化筛选候选帧；
+- 生成高清候选截图和带时间戳的教程步骤；
+- 编辑标题、摘要、步骤文案，调整顺序或隐藏步骤；
+- 对修改后的文字进行人工复核，并逐张确认截图隐私；
+- 导出 Markdown、公众号富文本和包含全部图片的 ZIP 图文包；
+- 无视频时体验一套完全自有的示例流程；
+- 使用 Python CLI 进行更完整、可复现的离线候选帧提取。
+
+## 能力边界
+
+当前版本是一条真实可用的本地处理链路，但还不是“全自动 AI 写教程”：
+
+- 候选画面由视觉变化启发式算法筛选，不代表已经识别出点击或操作语义；
+- 步骤标题和说明是待人工完善的初稿，当前不会调用大模型自动写作；
+- 真实视频草稿只保存在当前浏览器会话，刷新或关闭页面后不会恢复；
+- 首版限制为 5 分钟、500 MB，推荐使用 H.264 编码的 MP4；
+- MOV、WebM 是否可用取决于当前浏览器能否解码其中的视频编码；
+- 隐私检查是人工交付门禁，不是自动识别或自动脱敏。
+
+## 工作原理
+
+```text
+本地录屏
+  → 浏览器读取元数据
+  → 最多采样 120 个低分辨率画面
+  → 计算全局与 4×4 局部灰度差异
+  → 按变化强度、视觉差异和时间分布选择 1–10 张候选帧
+  → 生成高清 JPEG 截图
+  → 编辑、复核、隐私确认
+  → Markdown / 富文本 / ZIP 图文包
+```
+
+整个 Web 链路都在浏览器执行。当前部署不需要视频上传接口、对象存储或媒体处理服务器。
+
+## 本地运行
 
 需要 Node.js 22.13.0 或更高版本。
 
 ```bash
+git clone https://github.com/AnnCYW-cm/recnote.git
+cd recnote
 npm ci
+npx playwright install chromium
 npm run dev
 ```
 
-Web 首页只校验所选文件的名称和类型，不读取、不上传、也不分析视频字节。页面中的处理状态和教程初稿均来自木瓦任务板自有预置案例。
+打开终端显示的本地地址，选择一段短录屏即可开始。
 
-编辑草稿只保存在当前浏览器的 `localStorage`；Markdown、富文本和 ZIP 图文包由浏览器生成。Web 不会把用户选择的视频交给 `cli/` 处理。
+## 项目结构
 
-## 运行候选帧 CLI
+```text
+recnote/
+├── app/                   # Web 上传、处理、编辑、复核与示例页面
+├── components/ui/         # 可复用界面组件
+├── lib/video-analysis.ts  # 浏览器本地视频采样与候选帧筛选
+├── lib/tutorial-export.ts # Markdown、富文本和 ZIP 导出
+├── cli/                   # Python + ffmpeg 离线候选帧 CLI
+├── tests/e2e/             # Playwright 端到端测试
+└── public/cases/          # 自有示例录屏和截图
+```
 
-需要 Python 3.10 或更高版本，以及已加入 `PATH` 的 `ffmpeg` 和 `ffprobe`。CLI 不需要 Python 第三方包。
+## 离线 CLI
+
+CLI 适合需要可复现输出、离线评审页或更细粒度参数的场景。它需要 Python 3.10+，以及已加入 `PATH` 的 `ffmpeg` 和 `ffprobe`，不依赖 Python 第三方包，也不调用网络或模型 API。
 
 ```bash
 python3 cli/video_guide.py \
-  "/path/to/你的录屏.mov" \
+  "/path/to/你的录屏.mp4" \
   --output "/path/to/一个新目录"
 ```
 
-输出目录必须不存在或为空。CLI 在本机离线生成候选截图、`metadata.json`、`candidates.json`、`review.html` 和 `model_prompt.md`。它不调用模型 API，也不负责理解步骤、识别点击或自动写教程。
+它会生成高分辨率截图、`metadata.json`、`candidates.json`、`review.html` 和 `model_prompt.md`。完整参数见 [CLI 文档](cli/README.md)。
 
-完整用法和参数见 [CLI README](cli/README.md)，木瓦任务板自有录屏的可复现数据见 [CLI 验证记录](cli/VALIDATION.md)。
-
-## 检查与测试
-
-请按顺序运行：
+## 质量检查
 
 ```bash
 npm run test:cli
@@ -62,20 +96,28 @@ npm run check
 npm run test:e2e
 ```
 
-- `test:cli`：Python 单元测试和本地 ffmpeg 可用时的合成视频端到端测试；
+- `test:cli`：Python 单元测试与可用时的 ffmpeg 合成视频端到端测试；
 - `check`：格式、静态检查、TypeScript 类型检查和生产构建；
-- `test:e2e`：Web 浏览器端到端测试。
+- `test:e2e`：示例流程、真实本地视频处理、发布门禁和导出测试。
 
-## 数据与隐私边界
+## 路线图
 
-- CLI 不联网，但候选截图可能包含账号、姓名、文件名、通知或密钥；每张截图初始状态均为 `unreviewed`，公开或提交给模型前必须人工检查。
-- Web 的隐私确认是人工交付门禁，不是自动隐私识别或自动脱敏。
-- CLI 与 Web 目前没有直接连接；Web 展示的 6 步教程是自有预置初稿，不是 CLI 或模型自动生成结果。
+- [x] 浏览器本地读取真实视频并提取候选截图
+- [x] 教程编辑、人工复核、隐私门禁和图文包导出
+- [ ] 候选截图池、手工增删帧和截图替换
+- [ ] 本地草稿持久化与项目历史
+- [ ] 可插拔的多模态语义适配器，由用户明确选择是否启用
+- [ ] 裁剪、标注和敏感信息打码
+- [ ] Docker 自托管方案与可选服务端处理器
 
-## 当前路线
+## 隐私与安全
 
-V0.2 的唯一主线是打通：
+请先阅读 [隐私说明](PRIVACY.md) 和 [安全策略](SECURITY.md)。不要把包含客户信息、密钥、账号或个人隐私的录屏提交到公开 Issue、Pull Request 或测试夹具中。
 
-```text
-candidates[] → 语义理解 → TutorialStep[] → Web 工作台
-```
+## 参与贡献
+
+欢迎提交问题、改进文档或代码。开始前请阅读 [贡献指南](CONTRIBUTING.md) 与 [行为准则](CODE_OF_CONDUCT.md)。
+
+## 许可证
+
+源代码采用 [MIT License](LICENSE)。木瓦任务板示例、录屏、截图、文章配图和录见品牌素材不随代码授予再利用权，具体见 [素材许可说明](ASSETS_LICENSE.md)。
